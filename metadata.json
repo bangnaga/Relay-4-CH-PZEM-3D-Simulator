@@ -1,0 +1,8 @@
+{
+  "name": "Simulasi IoT",
+  "description": "Prototype interaktif kontrol dan monitoring 3D Babylon.js dengan papan mikrokontroler ESP32 dan modul Relay 2 Channel. Kontrol Lampu Dinding \u0026 Air conditioner (AC) serta monitoring penggunaan daya (Arus, Tegangan, Daya) menggunakan PZEM-004T",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
