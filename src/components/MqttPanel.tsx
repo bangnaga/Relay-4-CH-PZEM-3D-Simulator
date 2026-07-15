@@ -13,8 +13,10 @@ import {
   Play,
   ArrowDown,
   ArrowUp,
-  Info
+  Info,
+  ChevronDown
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { LightState, MqttConfig, MqttLog } from "../types";
 
 interface MqttPanelProps {
@@ -32,6 +34,7 @@ const DEFAULT_CONFIG: MqttConfig = {
 };
 
 export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<MqttConfig>(() => {
     const saved = localStorage.getItem("esp32_relay_mqtt_config");
     if (saved) {
@@ -348,41 +351,61 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
   return (
     <div className="glass rounded-3xl p-6 flex flex-col gap-6 shadow-xl" id="mqtt-panel">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between cursor-pointer select-none group transition-all duration-300 ${isOpen ? "border-b border-slate-800 pb-4" : ""}`}
+      >
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-display font-bold text-slate-100 tracking-tight flex items-center gap-2">
             Integrasi Protokol MQTT (ESP32 Gateway)
+            <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono ml-2">
+              Protokol IoT
+            </span>
           </h3>
           <p className="text-xs text-slate-400">
             Kendalikan relay Lampu & AC, serta kirim telemetri PZEM-004T ke broker MQTT / Home Automation
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {status === "connected" && (
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {status === "connected" && (
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+            )}
+            {status === "connecting" && (
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+            )}
+            {status === "disconnected" && (
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-600"></span>
+            )}
+            {status === "error" && (
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-bounce"></span>
+            )}
+            <span className="text-xs font-mono font-bold uppercase text-slate-300">
+              {status === "connected" ? "Terhubung" : status === "connecting" ? "Menghubungkan" : status === "error" ? "Error" : "Terputus"}
             </span>
-          )}
-          {status === "connecting" && (
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-            </span>
-          )}
-          {status === "disconnected" && (
-            <span className="h-2.5 w-2.5 rounded-full bg-slate-600"></span>
-          )}
-          {status === "error" && (
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-bounce"></span>
-          )}
-          <span className="text-xs font-mono font-bold uppercase text-slate-300">
-            {status === "connected" ? "Terhubung" : status === "connecting" ? "Menghubungkan" : status === "error" ? "Error" : "Terputus"}
-          </span>
+          </div>
+          <div className={`p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition-all duration-300 ${isOpen ? "rotate-180 text-blue-400 border-blue-500/20" : "group-hover:text-slate-200"}`}>
+            <ChevronDown size={15} />
+          </div>
         </div>
       </div>
 
-      {/* Configuration Form */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden flex flex-col gap-6"
+          >
+            {/* Configuration Form */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -754,6 +777,9 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
           </div>
         </div>
       </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

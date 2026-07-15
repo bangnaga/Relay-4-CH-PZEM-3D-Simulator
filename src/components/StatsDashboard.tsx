@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import {
   AreaChart,
   Area,
@@ -17,7 +18,9 @@ import {
   Clock,
   Gauge,
   Compass,
+  ChevronDown,
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 interface StatsDashboardProps {
   state: LightState;
@@ -28,6 +31,7 @@ interface StatsDashboardProps {
 const PLN_TARIFF_PER_KWH = 1444.70;
 
 export default function StatsDashboard({ state, history }: StatsDashboardProps) {
+  const [isOpen, setIsOpen] = useState(false);
   // 1. Calculations based on active PZEM power
   const currentPower = state.pzemPower; // Watts
   const accumulatedEnergy = state.pzemEnergy; // kWh
@@ -57,9 +61,39 @@ export default function StatsDashboard({ state, history }: StatsDashboardProps) 
   };
 
   return (
-    <div className="flex flex-col gap-8" id="stats-dashboard">
-      
-      {/* 1. PZEM-004T Industrial LCD Meter Interface */}
+    <div className="glass rounded-3xl p-6 flex flex-col gap-5 shadow-xl border border-slate-800/60" id="stats-dashboard">
+      {/* Header */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between cursor-pointer select-none group transition-all duration-300 ${isOpen ? "border-b border-slate-800 pb-4" : ""}`}
+      >
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg font-display font-bold text-slate-100 tracking-tight flex items-center gap-2">
+            <Activity size={18} className="text-blue-400" />
+            Metrik Efisiensi & Diagnostik Daya PZEM-004T
+            <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono ml-2">
+              Telemetri Sensor
+            </span>
+          </h3>
+          <p className="text-xs text-slate-400">
+            Analisis konsumsi listrik AC real-time, estimasi biaya PLN bulanan, dan grafik beban harian
+          </p>
+        </div>
+        <div className={`p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition-all duration-300 ${isOpen ? "rotate-180 text-blue-400 border-blue-500/20" : "group-hover:text-slate-200"}`}>
+          <ChevronDown size={15} />
+        </div>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden flex flex-col gap-8 pt-2"
+          >
+            {/* 1. PZEM-004T Industrial LCD Meter Interface */}
       <div className="bg-[#090d16] border border-blue-900/30 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         
@@ -358,7 +392,9 @@ export default function StatsDashboard({ state, history }: StatsDashboardProps) 
         </div>
 
       </div>
-
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -4,7 +4,9 @@ import LampuSimulator from "./components/LampuSimulator";
 import ControlPanel from "./components/ControlPanel";
 import StatsDashboard from "./components/StatsDashboard";
 import { MqttPanel } from "./components/MqttPanel";
-import { Info, Cpu, Activity, Settings2 } from "lucide-react";
+import { GeneratorPanel } from "./components/GeneratorPanel";
+import { VoiceControlPanel } from "./components/VoiceControlPanel";
+import { Info, Cpu, Activity, Settings2, Mic } from "lucide-react";
 
 export default function App() {
   // Initialize light state with 2 channels, PZEM telemetry, and AC parameters
@@ -19,7 +21,7 @@ export default function App() {
           id: 1,
           name: "Lampu Dinding",
           isOn: true,
-          power: 12, // 12W LED
+          power: 12, // 1 x 12W Premium Wall Sconce
           color: "#FFE6D1", // Warm cozy yellow
           temperature: 3000,
           bulbTemperature: 25.0,
@@ -27,9 +29,9 @@ export default function App() {
         },
         {
           id: 2,
-          name: "Lampu Plafon",
+          name: "Lampu Utama & Ledstrip",
           isOn: true,
-          power: 18, // 18W LED
+          power: 40, // 16W hanging lamp + 24W LED strip in parallel
           color: "#FFFFFF", // Cool white daylight
           temperature: 6500,
           bulbTemperature: 25.0,
@@ -39,7 +41,7 @@ export default function App() {
           id: 3,
           name: "Lampu Belajar Meja",
           isOn: false,
-          power: 8, // 8W LED
+          power: 18, // 18W High-Spread Bar LED
           color: "#FFF2E6", // Warm daylight / neutral
           temperature: 4000,
           bulbTemperature: 25.0,
@@ -361,16 +363,33 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-6">
-            <span className="text-xs text-slate-400 font-medium">Prototype Interaktif IoT Relay 4-Channel & Monitoring PZEM-004T</span>
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-xs font-mono text-slate-400 bg-slate-900/60 border border-slate-800/80 px-2.5 py-1 rounded-lg">
-                Sistem Online • 2026-07-15
-              </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                window.dispatchEvent(new Event("trigger-voice-listen"));
+                const panel = document.getElementById("voice-control-panel");
+                if (panel) {
+                  panel.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 rounded-xl text-xs font-semibold shadow-lg shadow-red-500/5 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+              title="Aktifkan Kontrol Suara"
+            >
+              <Mic size={14} className="animate-pulse text-red-400" />
+              <span>Asisten Suara</span>
+            </button>
+
+            <div className="hidden sm:flex items-center gap-6">
+              <span className="text-xs text-slate-400 font-medium">Prototype Interaktif IoT Relay 4-Channel & Monitoring PZEM-004T</span>
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-xs font-mono text-slate-400 bg-slate-900/60 border border-slate-800/80 px-2.5 py-1 rounded-lg">
+                  Sistem Online
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -413,17 +432,23 @@ export default function App() {
           </div>
         </div>
 
+        {/* Voice Control Panel Section */}
+        <div className="flex flex-col gap-4 mt-2">
+          <VoiceControlPanel state={lightState} onChange={handleStateChange} />
+        </div>
+
         {/* MQTT Integration Section */}
         <div className="flex flex-col gap-4 mt-2">
           <MqttPanel state={lightState} onChange={handleStateChange} />
         </div>
 
+        {/* Dynamic Code Generator Section */}
+        <div className="flex flex-col gap-4 mt-2">
+          <GeneratorPanel />
+        </div>
+
         {/* Dashboard Section */}
         <div className="flex flex-col gap-4 mt-2">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-            <Activity size={13} className="text-blue-400" />
-            Metrik Efisiensi & Diagnostik Daya PZEM-004T
-          </h2>
           <StatsDashboard state={lightState} history={history} />
         </div>
 

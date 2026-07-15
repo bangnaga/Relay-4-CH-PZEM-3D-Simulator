@@ -12,6 +12,7 @@ import {
   Color3,
   GlowLayer,
   Mesh,
+  TransformNode,
 } from "@babylonjs/core";
 import { LightState } from "../types";
 import { HelpCircle, RefreshCw } from "lucide-react";
@@ -47,12 +48,12 @@ export default function LampuSimulator({
   const pzemTXLEDRef = useRef<Mesh | null>(null);
 
   // Appliance materials / lights
-  // Channel 1: Lampu Dinding
-  const sconceGlowUpMatRef = useRef<StandardMaterial | null>(null);
-  const sconceGlowDownMatRef = useRef<StandardMaterial | null>(null);
-  const spotLightUpRef = useRef<SpotLight | null>(null);
-  const spotLightDownRef = useRef<SpotLight | null>(null);
-  const pointLightSconceRef = useRef<PointLight | null>(null);
+  // Channel 1: Lampu Dinding (4 Sisi)
+  const sconceGlowUpMatsRef = useRef<StandardMaterial[]>([]);
+  const sconceGlowDownMatsRef = useRef<StandardMaterial[]>([]);
+  const spotLightUpsRef = useRef<SpotLight[]>([]);
+  const spotLightDownsRef = useRef<SpotLight[]>([]);
+  const pointLightSconcesRef = useRef<PointLight[]>([]);
 
   // Channel 2: Lampu Plafon
   const ceilingGlowMatRef = useRef<StandardMaterial | null>(null);
@@ -80,10 +81,10 @@ export default function LampuSimulator({
     if (sceneRef.current) {
       const camera = sceneRef.current.activeCamera as ArcRotateCamera;
       if (camera) {
-        camera.setTarget(new Vector3(0, 1.15, 0.15));
+        camera.setTarget(new Vector3(0, 1.05, 1.1));
         camera.alpha = -Math.PI / 2; // Front-center look
-        camera.beta = Math.PI / 3.2; // Slightly higher slant looking down
-        camera.radius = 2.15;
+        camera.beta = Math.PI / 3.4; // Slightly higher slant looking down
+        camera.radius = 2.4;
       }
     }
   };
@@ -103,13 +104,20 @@ export default function LampuSimulator({
     scene.clearColor = new Color3(0.015, 0.025, 0.05).toColor4();
     sceneRef.current = scene;
 
+    // Automatically set maxSimultaneousLights to 16 for all standard materials
+    scene.onNewMaterialAddedObservable.add((material) => {
+      if (material instanceof StandardMaterial) {
+        material.maxSimultaneousLights = 16;
+      }
+    });
+
     // 3. Setup Camera (tuned precisely)
     const camera = new ArcRotateCamera(
       "mainCamera",
       -Math.PI / 2,
-      Math.PI / 3.2,
-      2.15,
-      new Vector3(0, 1.15, 0.15),
+      Math.PI / 3.4,
+      2.4,
+      new Vector3(0, 1.05, 1.1),
       scene
     );
     camera.attachControl(canvasRef.current, true);
@@ -120,7 +128,7 @@ export default function LampuSimulator({
 
     // 4. Glow Layer for photorealistic glows on LEDs and sconces
     const glow = new GlowLayer("glow", scene);
-    glow.intensity = 1.0;
+    glow.intensity = 0.55;
 
     // 5. Setup Ambient Light (Room Ambient Slider Simulation)
     const ambientLight = new HemisphericLight(
@@ -128,8 +136,8 @@ export default function LampuSimulator({
       new Vector3(0, 1, 0),
       scene
     );
-    ambientLight.intensity = state.ambientLight / 100;
-    ambientLight.diffuse = new Color3(0.55, 0.65, 0.85); // soft daylight blue
+    ambientLight.intensity = (state.ambientLight / 100) * 0.6;
+    ambientLight.diffuse = new Color3(0.4, 0.45, 0.55); // soft, modern natural daylight/ambient
     ambientLight.groundColor = new Color3(0.12, 0.12, 0.16);
     ambientLightRef.current = ambientLight;
 
@@ -169,146 +177,465 @@ export default function LampuSimulator({
     blueLedOnMat.emissiveColor = new Color3(0.1, 0.35, 0.85); // glowing blue
 
     const tableMat = new StandardMaterial("tableMat", scene);
-    tableMat.diffuseColor = new Color3(0.18, 0.22, 0.28); // Slate table top
-    tableMat.specularColor = new Color3(0.1, 0.1, 0.1);
-    tableMat.roughness = 0.6;
+    tableMat.diffuseColor = new Color3(0.52, 0.34, 0.22); // Warm natural walnut wood
+    tableMat.specularColor = new Color3(0.12, 0.1, 0.08);
+    tableMat.roughness = 0.45;
 
-    // --- Ground/Floor ---
-    const floor = MeshBuilder.CreatePlane("floor", { size: 10 }, scene);
+    // --- Ground/Floor (Parquet Wood - 3x2 Meter Room Dimension) ---
+    const floor = MeshBuilder.CreatePlane("floor", { width: 3.0, height: 2.0 }, scene);
     floor.rotation.x = Math.PI / 2;
-    floor.position.y = 0;
+    floor.position.set(0, 0, 1.0); // centered at (0, 0, 1.0) so depth goes from 0 to 2.0
     const floorMat = new StandardMaterial("floorMat", scene);
-    floorMat.diffuseColor = new Color3(0.12, 0.12, 0.15);
-    floorMat.specularColor = new Color3(0.02, 0.02, 0.02);
+    floorMat.diffuseColor = new Color3(0.72, 0.58, 0.44); // Warm parquet oak wood
+    floorMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    floorMat.roughness = 0.55;
     floor.material = floorMat;
     floor.receiveShadows = true;
 
-    // --- Back Wall ---
-    const backWall = MeshBuilder.CreatePlane("backWall", { size: 10 }, scene);
-    backWall.position.z = 2.5;
-    backWall.position.y = 5;
+    // --- Back Wall (White Paint - 3.0m wide by 2.2m high) ---
+    const backWall = MeshBuilder.CreatePlane("backWall", { width: 3.0, height: 2.2 }, scene);
+    backWall.position.set(0, 1.1, 2.0); // flat at Z=2.0
     const wallMat = new StandardMaterial("wallMat", scene);
-    wallMat.diffuseColor = new Color3(0.09, 0.11, 0.15); // Deep space wall
-    wallMat.specularColor = new Color3(0.03, 0.03, 0.03);
+    wallMat.diffuseColor = new Color3(0.95, 0.95, 0.95); // White paint
+    wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    wallMat.roughness = 0.85;
     backWall.material = wallMat;
     backWall.receiveShadows = true;
 
-    // --- Desk/Table ---
+    // --- Left Wall (White Paint - 2.0m deep by 2.2m high) ---
+    const leftWall = MeshBuilder.CreatePlane("leftWall", { width: 2.0, height: 2.2 }, scene);
+    leftWall.rotation.y = Math.PI / 2; // Rotate to face inwards (+X)
+    leftWall.position.set(-1.5, 1.1, 1.0);
+    leftWall.material = wallMat;
+    leftWall.receiveShadows = true;
+
+    // --- Right Wall (White Paint - 2.0m deep by 2.2m high) ---
+    const rightWall = MeshBuilder.CreatePlane("rightWall", { width: 2.0, height: 2.2 }, scene);
+    rightWall.rotation.y = -Math.PI / 2; // Rotate to face inwards (-X)
+    rightWall.position.set(1.5, 1.1, 1.0);
+    rightWall.material = wallMat;
+    rightWall.receiveShadows = true;
+
+    // --- Ceiling / Plafon (White Paint - 3.0m wide by 2.0m deep) ---
+    const ceiling = MeshBuilder.CreatePlane("ceiling", { width: 3.0, height: 2.0 }, scene);
+    ceiling.rotation.x = -Math.PI / 2; // Rotate to face downwards (-Y)
+    ceiling.position.set(0, 2.2, 1.0);
+    ceiling.material = wallMat;
+    ceiling.receiveShadows = true;
+
+    // --- Desk/Table (Touch backwall at Z=2.0) ---
     const tableTop = MeshBuilder.CreateBox(
       "tableTop",
-      { width: 3.2, height: 0.06, depth: 1.6 },
+      { width: 1.3, height: 0.04, depth: 0.65 },
       scene
     );
-    tableTop.position.set(0, 0.75, 0);
+    tableTop.position.set(0, 0.75, 1.675);
     tableTop.material = tableMat;
     tableTop.receiveShadows = true;
 
-    // Table legs
+    // Desk metal support frame under-apron
+    const deskApron = MeshBuilder.CreateBox(
+      "deskApron",
+      { width: 1.26, height: 0.03, depth: 0.61 },
+      scene
+    );
+    deskApron.position.set(0, 0.715, 1.675);
+    const darkMetalMat = new StandardMaterial("darkMetalMat", scene);
+    darkMetalMat.diffuseColor = new Color3(0.08, 0.08, 0.08);
+    darkMetalMat.roughness = 0.5;
+    deskApron.material = darkMetalMat;
+
+    // Table legs (Black steel)
     const legCoords = [
-      [-1.4, -0.7],
-      [1.4, -0.7],
-      [-1.4, 0.7],
-      [1.4, 0.7],
+      [-0.58, 1.45],
+      [0.58, 1.45],
+      [-0.58, 1.90],
+      [0.58, 1.90],
     ];
     const legMat = new StandardMaterial("legMat", scene);
     legMat.diffuseColor = new Color3(0.04, 0.04, 0.04); // Matte black steel
     legCoords.forEach(([x, z], i) => {
       const leg = MeshBuilder.CreateCylinder(
         `leg_${i}`,
-        { height: 0.75, diameter: 0.06 },
+        { height: 0.75, diameter: 0.04 },
         scene
       );
       leg.position.set(x, 0.375, z);
       leg.material = legMat;
     });
 
-    // ================= PROTOTYPING BASE WOOD STAND =================
-    const baseBoard = MeshBuilder.CreateBox(
-      "baseBoard",
-      { width: 1.35, height: 0.03, depth: 0.85 },
+    // ================= PREMIUM DESK ACCESSORIES & ORGANIZER =================
+    // Felt Workspace Desk Mat / Mousepad
+    const deskMat = MeshBuilder.CreateBox(
+      "deskMat",
+      { width: 0.85, height: 0.003, depth: 0.36 },
       scene
     );
-    baseBoard.position.set(0, 0.795, 0.05);
+    deskMat.position.set(0, 0.7715, 1.62);
+    const deskMatMat = new StandardMaterial("deskMatMat", scene);
+    deskMatMat.diffuseColor = new Color3(0.12, 0.12, 0.14); // Sleek charcoal wool felt
+    deskMatMat.roughness = 0.9;
+    deskMat.material = deskMatMat;
+    deskMat.receiveShadows = true;
+
+    // Nice Ceramic Coffee Mug
+    const coffeeCup = MeshBuilder.CreateCylinder(
+      "coffeeCup",
+      { height: 0.065, diameter: 0.045 },
+      scene
+    );
+    coffeeCup.position.set(-0.48, 0.802, 1.5);
+    const cupMat = new StandardMaterial("cupMat", scene);
+    cupMat.diffuseColor = new Color3(0.95, 0.95, 0.95); // Glossy white ceramic
+    cupMat.specularColor = new Color3(0.8, 0.8, 0.8);
+    cupMat.roughness = 0.05;
+    coffeeCup.material = cupMat;
+
+    const cupHandle = MeshBuilder.CreateTorus(
+      "cupHandle",
+      { diameter: 0.026, thickness: 0.006, tessellation: 12 },
+      scene
+    );
+    cupHandle.position.set(-0.505, 0.802, 1.5);
+    cupHandle.rotation.x = Math.PI / 2;
+    cupHandle.material = cupMat;
+
+    // Stack of Multi-Colored Textbooks
+    // Book 1 (Bottom, Red cover)
+    const book1 = MeshBuilder.CreateBox(
+      "book1",
+      { width: 0.16, height: 0.022, depth: 0.22 },
+      scene
+    );
+    book1.position.set(0.44, 0.801, 1.5);
+    book1.rotation.y = -Math.PI / 15; // Slightly askew
+    const book1Mat = new StandardMaterial("book1Mat", scene);
+    book1Mat.diffuseColor = new Color3(0.68, 0.12, 0.12); // Rich crimson
+    book1.material = book1Mat;
+
+    // Book 2 (Top, Teal cover)
+    const book2 = MeshBuilder.CreateBox(
+      "book2",
+      { width: 0.15, height: 0.02, depth: 0.2 },
+      scene
+    );
+    book2.position.set(0.43, 0.822, 1.49);
+    book2.rotation.y = Math.PI / 24;
+    const book2Mat = new StandardMaterial("book2Mat", scene);
+    book2Mat.diffuseColor = new Color3(0.08, 0.42, 0.46); // Technical Teal
+    book2.material = book2Mat;
+
+    // Pages edge for books
+    const pages1 = MeshBuilder.CreateBox("pages1", { width: 0.154, height: 0.018, depth: 0.214 }, scene);
+    pages1.position.set(0.44, 0.801, 1.5);
+    pages1.rotation.y = -Math.PI / 15;
+    const pagesMat = new StandardMaterial("pagesMat", scene);
+    pagesMat.diffuseColor = new Color3(0.92, 0.92, 0.88); // Soft paper white
+    pages1.material = pagesMat;
+
+    const pages2 = MeshBuilder.CreateBox("pages2", { width: 0.144, height: 0.016, depth: 0.194 }, scene);
+    pages2.position.set(0.43, 0.822, 1.49);
+    pages2.rotation.y = Math.PI / 24;
+    pages2.material = pagesMat;
+
+    // ================= SUPPORTING STUDY ROOM FURNITURE =================
+
+    // 1. Study Ergonomic Chair
+    const chairX = 0;
+    const chairY = 0;
+    const chairZ = 1.1; // Placed perfectly in front of desk
+
+    const chairSeatMat = new StandardMaterial("chairSeatMat", scene);
+    chairSeatMat.diffuseColor = new Color3(0.15, 0.15, 0.18); // Dark charcoal fabric
+    chairSeatMat.roughness = 0.8;
+
+    const chairFrameMat = new StandardMaterial("chairFrameMat", scene);
+    chairFrameMat.diffuseColor = new Color3(0.05, 0.05, 0.05); // Matte black frame
+    chairFrameMat.roughness = 0.5;
+
+    // Seat
+    const seat = MeshBuilder.CreateBox("chairSeat", { width: 0.4, height: 0.04, depth: 0.38 }, scene);
+    seat.position.set(chairX, 0.44, chairZ);
+    seat.material = chairSeatMat;
+
+    // Backrest
+    const backrest = MeshBuilder.CreateBox("chairBack", { width: 0.38, height: 0.34, depth: 0.04 }, scene);
+    backrest.position.set(chairX, 0.73, chairZ - 0.17);
+    backrest.material = chairSeatMat;
+
+    // Spine connector
+    const spine = MeshBuilder.CreateBox("chairSpine", { width: 0.05, height: 0.32, depth: 0.03 }, scene);
+    spine.position.set(chairX, 0.53, chairZ - 0.15);
+    spine.material = chairFrameMat;
+
+    // Base shaft
+    const shaft = MeshBuilder.CreateCylinder("chairShaft", { height: 0.4, diameter: 0.03 }, scene);
+    shaft.position.set(chairX, 0.2, chairZ);
+    shaft.material = chairFrameMat;
+
+    // 5-star legs at floor
+    const starBase = MeshBuilder.CreateCylinder("chairStar", { height: 0.02, diameter: 0.44 }, scene);
+    starBase.position.set(chairX, 0.015, chairZ);
+    starBase.material = chairFrameMat;
+
+    // 2. Walnut Wood Side Bookshelf/Cabinet
+    const cabX = 0.8;
+    const cabY = 0;
+    const cabZ = 1.7;
+
+    const cabMat = new StandardMaterial("cabMat", scene);
+    cabMat.diffuseColor = new Color3(0.42, 0.3, 0.22); // Walnut wood
+    cabMat.roughness = 0.6;
+
+    const cabBody = MeshBuilder.CreateBox("cabBody", { width: 0.35, height: 0.85, depth: 0.35 }, scene);
+    cabBody.position.set(cabX, 0.425, cabZ);
+    cabBody.material = cabMat;
+
+    const trimMat = new StandardMaterial("trimMat", scene);
+    trimMat.diffuseColor = new Color3(0.1, 0.1, 0.1);
+
+    // Drawers & handles
+    for (let i = 0; i < 2; i++) {
+      const drawerLine = MeshBuilder.CreateBox(`cabDrawer_${i}`, { width: 0.31, height: 0.005, depth: 0.01 }, scene);
+      drawerLine.position.set(cabX, 0.22 + i * 0.35, cabZ - 0.176);
+      drawerLine.material = trimMat;
+
+      const handle = MeshBuilder.CreateBox(`cabHandle_${i}`, { width: 0.09, height: 0.015, depth: 0.015 }, scene);
+      handle.position.set(cabX, 0.28 + i * 0.35, cabZ - 0.182);
+      handle.material = metalMat;
+    }
+
+    // 3. Colorful Stacked Study Textbooks
+    const bookX = 0.45;
+    const bookY = 0.77;
+    const bookZ = 1.65;
+
+    const bookColors = [
+      new Color3(0.12, 0.45, 0.8), // Blue book
+      new Color3(0.85, 0.22, 0.15), // Red book
+      new Color3(0.15, 0.62, 0.35), // Green book
+    ];
+
+    bookColors.forEach((color, idx) => {
+      const book = MeshBuilder.CreateBox(`studyBook_${idx}`, { width: 0.20, height: 0.02, depth: 0.24 }, scene);
+      book.position.set(bookX + idx * 0.01, bookY + 0.01 + idx * 0.021, bookZ + idx * 0.003);
+      book.rotation.y = idx * 0.12 - 0.12;
+      
+      const bookMat = new StandardMaterial(`bookMat_${idx}`, scene);
+      bookMat.diffuseColor = color;
+      bookMat.roughness = 0.7;
+      book.material = bookMat;
+
+      const pages = MeshBuilder.CreateBox(`studyBookPages_${idx}`, { width: 0.19, height: 0.018, depth: 0.235 }, scene);
+      pages.position.set(bookX + idx * 0.01, bookY + 0.01 + idx * 0.021, bookZ + idx * 0.003 + 0.006);
+      pages.rotation.y = idx * 0.12 - 0.12;
+      const pagesMat = new StandardMaterial("pagesMat", scene);
+      pagesMat.diffuseColor = new Color3(0.95, 0.95, 0.9);
+      pages.material = pagesMat;
+    });
+
+    // ================= LAPTOP OPENING ARDUINO IDE =================
+    const laptopBase = MeshBuilder.CreateBox(
+      "laptopBase",
+      { width: 0.32, height: 0.012, depth: 0.22 },
+      scene
+    );
+    laptopBase.position.set(0, 0.77 + 0.006, 1.55);
+    const laptopMetalMat = new StandardMaterial("laptopMetalMat", scene);
+    laptopMetalMat.diffuseColor = new Color3(0.25, 0.27, 0.3);
+    laptopMetalMat.specularColor = new Color3(0.6, 0.6, 0.6);
+    laptopMetalMat.roughness = 0.2;
+    laptopBase.material = laptopMetalMat;
+
+    const keyboardMat = new StandardMaterial("keyboardMat", scene);
+    keyboardMat.diffuseColor = new Color3(0.1, 0.1, 0.1);
+    const laptopKb = MeshBuilder.CreateBox(
+      "laptopKb",
+      { width: 0.29, height: 0.002, depth: 0.11 },
+      scene
+    );
+    laptopKb.position.set(0, 0.77 + 0.013, 1.52);
+    laptopKb.material = keyboardMat;
+
+    // Trackpad
+    const trackpad = MeshBuilder.CreateBox(
+      "trackpad",
+      { width: 0.08, height: 0.001, depth: 0.05 },
+      scene
+    );
+    trackpad.position.set(0, 0.77 + 0.013, 1.59);
+    trackpad.material = laptopMetalMat;
+
+    // Screen Lid (Tilted back at ~20 degrees)
+    const screenY = 0.77 + 0.11;
+    const screenZ = 1.65;
+    const laptopScreen = MeshBuilder.CreateBox(
+      "laptopScreen",
+      { width: 0.32, height: 0.21, depth: 0.01 },
+      scene
+    );
+    laptopScreen.rotation.x = -Math.PI / 10;
+    laptopScreen.position.set(0, screenY, screenZ);
+    laptopScreen.material = laptopMetalMat;
+
+    // Screen display showing Arduino IDE
+    const screenDisplay = MeshBuilder.CreateBox(
+      "screenDisplay",
+      { width: 0.30, height: 0.19, depth: 0.004 },
+      scene
+    );
+    screenDisplay.rotation.x = -Math.PI / 10;
+    screenDisplay.position.set(0, screenY, screenZ - 0.005);
+    
+    const displayMat = new StandardMaterial("displayMat", scene);
+    displayMat.diffuseColor = new Color3(0.04, 0.08, 0.1); // Arduino IDE Dark Mode Teal
+    displayMat.emissiveColor = new Color3(0.02, 0.04, 0.05);
+    screenDisplay.material = displayMat;
+
+    // Syntax-highlighted code lines on display screen (C++ format)
+    const syntaxColors = [
+      new Color3(0.12, 0.65, 0.45), // comments (green)
+      new Color3(0.85, 0.42, 0.15), // setup/loop (orange)
+      new Color3(0.15, 0.55, 0.85), // pin / mode (blue)
+      new Color3(0.95, 0.95, 0.95), // regular code (white)
+      new Color3(0.85, 0.42, 0.15), // digital write (orange)
+      new Color3(0.12, 0.65, 0.45), // comment (green)
+    ];
+
+    const cosTheta = Math.cos(Math.PI / 10);
+    const sinTheta = Math.sin(Math.PI / 10);
+
+    syntaxColors.forEach((col, idx) => {
+      const codeLine = MeshBuilder.CreateBox(
+        `codeLine_${idx}`,
+        { width: 0.14 + Math.random() * 0.1, height: 0.008, depth: 0.002 },
+        scene
+      );
+      codeLine.rotation.x = -Math.PI / 10;
+      const yOffset = 0.07 - idx * 0.025;
+      codeLine.position.set(
+        -0.05 + Math.random() * 0.02,
+        screenY + yOffset * cosTheta,
+        screenZ - 0.006 - yOffset * sinTheta
+      );
+      
+      const lineMat = new StandardMaterial(`lineMat_${idx}`, scene);
+      lineMat.diffuseColor = col;
+      lineMat.emissiveColor = col.scale(0.8);
+      codeLine.material = lineMat;
+    });
+
+    // ================= WALL-MOUNTED INDUSTRIAL BOX PANEL =================
+    const boxX = -0.22;
+    const boxY = 1.25;
+    const boxZ = 1.97;
+
+    const panelBox = MeshBuilder.CreateBox(
+      "panelBox",
+      { width: 0.42, height: 0.52, depth: 0.08 },
+      scene
+    );
+    panelBox.position.set(boxX, boxY, boxZ);
+    const boxMetalMat = new StandardMaterial("boxMetalMat", scene);
+    boxMetalMat.diffuseColor = new Color3(0.35, 0.38, 0.42); // Industrial grey paint
+    boxMetalMat.roughness = 0.4;
+    panelBox.material = boxMetalMat;
+
+    // Base board (Prototyping Board plate mounted flat inside)
+    const baseBoard = MeshBuilder.CreateBox(
+      "baseBoard",
+      { width: 0.38, height: 0.48, depth: 0.01 },
+      scene
+    );
+    baseBoard.position.set(boxX, boxY, boxZ - 0.01);
     const baseBoardMat = new StandardMaterial("baseBoardMat", scene);
     baseBoardMat.diffuseColor = new Color3(0.28, 0.18, 0.12); // Rich mahogany
     baseBoardMat.specularColor = new Color3(0.04, 0.04, 0.04);
     baseBoardMat.roughness = 0.5;
     baseBoard.material = baseBoardMat;
-    baseBoard.receiveShadows = true;
 
-    // ================= ESP32 BOARD MESH =================
-    const espPCB = MeshBuilder.CreateBox(
-      "espPCB",
-      { width: 0.2, height: 0.008, depth: 0.28 },
+    // Glass Cover Panel (Door)
+    const panelCover = MeshBuilder.CreateBox(
+      "panelCover",
+      { width: 0.42, height: 0.52, depth: 0.006 },
       scene
     );
-    espPCB.position.set(-0.45, 0.814, -0.15);
+    panelCover.position.set(boxX, boxY, boxZ - 0.042);
+    const coverMat = new StandardMaterial("coverMat", scene);
+    coverMat.diffuseColor = new Color3(0.3, 0.4, 0.5);
+    coverMat.alpha = 0.15;
+    panelCover.material = coverMat;
+
+    // ================= ESP32 BOARD MESH (Inside Box Panel) =================
+    const espPCB = MeshBuilder.CreateBox(
+      "espPCB",
+      { width: 0.12, height: 0.18, depth: 0.008 },
+      scene
+    );
+    espPCB.position.set(boxX - 0.09, boxY + 0.06, boxZ - 0.02);
     const espPCBMat = new StandardMaterial("espPCBMat", scene);
     espPCBMat.diffuseColor = new Color3(0.06, 0.15, 0.08); // Emerald solder mask
     espPCBMat.specularColor = new Color3(0.15, 0.15, 0.15);
     espPCB.material = espPCBMat;
-    espPCB.receiveShadows = true;
 
     // WiFi Module Metal Shield
     const espShield = MeshBuilder.CreateBox(
       "espShield",
-      { width: 0.08, height: 0.015, depth: 0.11 },
+      { width: 0.05, height: 0.07, depth: 0.015 },
       scene
     );
-    espShield.position.set(-0.45, 0.825, -0.12);
+    espShield.position.set(boxX - 0.09, boxY + 0.06, boxZ - 0.03);
     espShield.material = metalMat;
 
     // Black Pin Headers
     const headerLeft = MeshBuilder.CreateBox(
       "headerLeft",
-      { width: 0.015, height: 0.015, depth: 0.24 },
+      { width: 0.012, height: 0.15, depth: 0.015 },
       scene
     );
-    headerLeft.position.set(-0.52, 0.825, -0.15);
+    headerLeft.position.set(boxX - 0.13, boxY + 0.06, boxZ - 0.025);
     const headerMat = new StandardMaterial("headerMat", scene);
     headerMat.diffuseColor = new Color3(0.08, 0.08, 0.08);
     headerLeft.material = headerMat;
 
     const headerRight = MeshBuilder.CreateBox(
       "headerRight",
-      { width: 0.015, height: 0.015, depth: 0.24 },
+      { width: 0.012, height: 0.15, depth: 0.015 },
       scene
     );
-    headerRight.position.set(-0.38, 0.825, -0.15);
+    headerRight.position.set(boxX - 0.05, boxY + 0.06, boxZ - 0.025);
     headerRight.material = headerMat;
 
     // USB Port
     const usbPort = MeshBuilder.CreateBox(
       "usbPort",
-      { width: 0.035, height: 0.015, depth: 0.025 },
+      { width: 0.025, height: 0.015, depth: 0.02 },
       scene
     );
-    usbPort.position.set(-0.45, 0.825, -0.28);
+    usbPort.position.set(boxX - 0.09, boxY - 0.04, boxZ - 0.025);
     usbPort.material = metalMat;
 
     // Onboard LEDs
-    const espPowerLED = MeshBuilder.CreateSphere("espPowerLED", { diameter: 0.01 }, scene);
-    espPowerLED.position.set(-0.48, 0.822, -0.25);
+    const espPowerLED = MeshBuilder.CreateSphere("espPowerLED", { diameter: 0.008 }, scene);
+    espPowerLED.position.set(boxX - 0.11, boxY + 0.13, boxZ - 0.026);
     espPowerLED.material = redLedOnMat;
 
-    const espStatusLED = MeshBuilder.CreateSphere("espStatusLED", { diameter: 0.01 }, scene);
-    espStatusLED.position.set(-0.42, 0.822, -0.25);
+    const espStatusLED = MeshBuilder.CreateSphere("espStatusLED", { diameter: 0.008 }, scene);
+    espStatusLED.position.set(boxX - 0.07, boxY + 0.13, boxZ - 0.026);
     espStatusLED.material = blueLedOnMat;
     espStatusLEDRef.current = espStatusLED;
 
-    // ================= 4-CHANNEL RELAY BOARD MESH =================
-    // Wider blue relay board (holds 4 Songle cubes)
+    // ================= 4-CHANNEL RELAY BOARD MESH (Inside Box Panel) =================
     const relayPCB = MeshBuilder.CreateBox(
       "relayPCB",
-      { width: 0.28, height: 0.008, depth: 0.22 },
+      { width: 0.16, height: 0.12, depth: 0.008 },
       scene
     );
-    relayPCB.position.set(-0.11, 0.814, -0.15);
+    relayPCB.position.set(boxX + 0.08, boxY + 0.1, boxZ - 0.02);
     const relayPCBMat = new StandardMaterial("relayPCBMat", scene);
     relayPCBMat.diffuseColor = new Color3(0.05, 0.12, 0.24); // Industrial blue
     relayPCBMat.specularColor = new Color3(0.15, 0.15, 0.15);
     relayPCB.material = relayPCBMat;
-    relayPCB.receiveShadows = true;
 
     const relayBlueMat = new StandardMaterial("relayBlueMat", scene);
     relayBlueMat.diffuseColor = new Color3(0.02, 0.26, 0.55); // Blue Songle relays
@@ -322,35 +649,34 @@ export default function LampuSimulator({
 
     // Construct 4 Relay Channels
     for (let i = 0; i < 4; i++) {
-      const xOffset = -0.09 + i * 0.06;
+      const xOffset = -0.06 + i * 0.04;
 
       // Relay Cube
       const cube = MeshBuilder.CreateBox(
         `relayCube_${i}`,
-        { width: 0.048, height: 0.042, depth: 0.075 },
+        { width: 0.03, height: 0.03, depth: 0.032 },
         scene
       );
-      cube.position.set(-0.11 + xOffset, 0.839, -0.14);
+      cube.position.set(boxX + 0.08 + xOffset, boxY + 0.12, boxZ - 0.035);
       cube.material = relayBlueMat;
-      cube.receiveShadows = true;
       relayCubes.push(cube);
 
       // Screw Terminal Block (3 pins per relay)
       const terminal = MeshBuilder.CreateBox(
         `relayTerm_${i}`,
-        { width: 0.048, height: 0.035, depth: 0.035 },
+        { width: 0.03, height: 0.025, depth: 0.025 },
         scene
       );
-      terminal.position.set(-0.11 + xOffset, 0.835, -0.21);
+      terminal.position.set(boxX + 0.08 + xOffset, boxY + 0.07, boxZ - 0.03);
       terminal.material = greenTerminalMat;
 
       // Screw terminals indent
       const terminalsIndent = MeshBuilder.CreateBox(
         `termIndent_${i}`,
-        { width: 0.038, height: 0.006, depth: 0.012 },
+        { width: 0.024, height: 0.005, depth: 0.01 },
         scene
       );
-      terminalsIndent.position.set(-0.11 + xOffset, 0.853, -0.215);
+      terminalsIndent.position.set(boxX + 0.08 + xOffset, boxY + 0.055, boxZ - 0.032);
       const screwMat = new StandardMaterial("screwMat", scene);
       screwMat.diffuseColor = new Color3(0.1, 0.1, 0.1);
       terminalsIndent.material = screwMat;
@@ -358,27 +684,25 @@ export default function LampuSimulator({
       // Relay Status LED
       const led = MeshBuilder.CreateSphere(
         `relayLED_${i}`,
-        { diameter: 0.01 },
+        { diameter: 0.007 },
         scene
       );
-      led.position.set(-0.11 + xOffset, 0.822, -0.07);
+      led.position.set(boxX + 0.08 + xOffset, boxY + 0.145, boxZ - 0.026);
       led.material = ledOffMat;
       relayLEDs.push(led);
     }
     relayLEDsRef.current = relayLEDs;
 
-    // ================= PZEM-004T SENSOR BOARD MESH =================
-    // Blue PZEM-004T energy monitor board
+    // ================= PZEM-004T SENSOR BOARD MESH (Inside Box Panel) =================
     const pzemPCB = MeshBuilder.CreateBox(
       "pzemPCB",
-      { width: 0.18, height: 0.008, depth: 0.15 },
+      { width: 0.14, height: 0.10, depth: 0.008 },
       scene
     );
-    pzemPCB.position.set(0.2, 0.814, -0.15);
+    pzemPCB.position.set(boxX + 0.08, boxY - 0.1, boxZ - 0.02);
     const pzemPCBMat = new StandardMaterial("pzemPCBMat", scene);
     pzemPCBMat.diffuseColor = new Color3(0.04, 0.08, 0.16); // dark navy/teal PCB
     pzemPCB.material = pzemPCBMat;
-    pzemPCB.receiveShadows = true;
 
     const chipMat = new StandardMaterial("chipMat", scene);
     chipMat.diffuseColor = new Color3(0.15, 0.15, 0.15);
@@ -386,57 +710,56 @@ export default function LampuSimulator({
     // Small black chip representing the V9881D chip inside PZEM
     const pzemChip = MeshBuilder.CreateBox(
       "pzemChip",
-      { width: 0.035, height: 0.006, depth: 0.035 },
+      { width: 0.025, height: 0.025, depth: 0.005 },
       scene
     );
-    pzemChip.position.set(0.17, 0.821, -0.17);
+    pzemChip.position.set(boxX + 0.06, boxY - 0.1, boxZ - 0.025);
     pzemChip.material = chipMat;
 
-    // Optocoupler chips (safety isolation)
+    // Optocoupler chips
     for (let i = 0; i < 3; i++) {
       const opto = MeshBuilder.CreateBox(
         `pzemOpto_${i}`,
-        { width: 0.015, height: 0.008, depth: 0.025 },
+        { width: 0.012, height: 0.018, depth: 0.005 },
         scene
       );
-      opto.position.set(0.14 + i * 0.025, 0.822, -0.11);
+      opto.position.set(boxX + 0.04 + i * 0.018, boxY - 0.07, boxZ - 0.025);
       opto.material = chipMat;
     }
 
     // High Voltage Terminal Block
     const pzemHighTerm = MeshBuilder.CreateBox(
       "pzemHighTerm",
-      { width: 0.05, height: 0.035, depth: 0.035 },
+      { width: 0.04, height: 0.025, depth: 0.025 },
       scene
     );
-    pzemHighTerm.position.set(0.24, 0.835, -0.21);
+    pzemHighTerm.position.set(boxX + 0.12, boxY - 0.12, boxZ - 0.03);
     pzemHighTerm.material = greenTerminalMat;
 
     // CT Coil wire terminal connector
     const pzemCtTerm = MeshBuilder.CreateBox(
       "pzemCtTerm",
-      { width: 0.03, height: 0.025, depth: 0.025 },
+      { width: 0.025, height: 0.02, depth: 0.02 },
       scene
     );
-    pzemCtTerm.position.set(0.15, 0.83, -0.21);
+    pzemCtTerm.position.set(boxX + 0.04, boxY - 0.12, boxZ - 0.03);
     const ctTermMat = new StandardMaterial("ctTermMat", scene);
     ctTermMat.diffuseColor = new Color3(0.18, 0.18, 0.18);
     pzemCtTerm.material = ctTermMat;
 
     // PZEM-004T Status Telemetry LED
-    const pzemTXLED = MeshBuilder.CreateSphere("pzemTXLED", { diameter: 0.01 }, scene);
-    pzemTXLED.position.set(0.25, 0.822, -0.09);
+    const pzemTXLED = MeshBuilder.CreateSphere("pzemTXLED", { diameter: 0.008 }, scene);
+    pzemTXLED.position.set(boxX + 0.12, boxY - 0.06, boxZ - 0.026);
     pzemTXLED.material = redLedOffMat;
     pzemTXLEDRef.current = pzemTXLED;
 
-    // 3D CURRENT TRANSFORMER (CT) COIL TORUS
+    // 3D CURRENT TRANSFORMER (CT) COIL TORUS (Mounted vertically inside box panel)
     const pzemCT = MeshBuilder.CreateTorus(
       "pzemCT",
-      { diameter: 0.075, thickness: 0.024, tessellation: 20 },
+      { diameter: 0.05, thickness: 0.015, tessellation: 20 },
       scene
     );
-    pzemCT.position.set(0.22, 0.84, -0.02);
-    pzemCT.rotation.x = Math.PI / 2;
+    pzemCT.position.set(boxX + 0.08, boxY - 0.19, boxZ - 0.025);
     const ctMat = new StandardMaterial("ctMat", scene);
     ctMat.diffuseColor = new Color3(0.08, 0.08, 0.08); // Matte black casing
     ctMat.roughness = 0.5;
@@ -445,217 +768,277 @@ export default function LampuSimulator({
     // Blue wrapper coil tape on CT
     const ctWrapper = MeshBuilder.CreateBox(
       "ctWrapper",
-      { width: 0.015, height: 0.026, depth: 0.035 },
+      { width: 0.012, height: 0.018, depth: 0.02 },
       scene
     );
-    ctWrapper.position.set(0.22, 0.865, -0.02);
+    ctWrapper.position.set(boxX + 0.08, boxY - 0.17, boxZ - 0.025);
     const wrapperMat = new StandardMaterial("wrapperMat", scene);
     wrapperMat.diffuseColor = new Color3(0.1, 0.35, 0.75); // Blue vinyl tape
     ctWrapper.material = wrapperMat;
 
-    // ================= APPLIANCES MOUNTED ON BACK WALL / DESK =================
+    // ================= APPLIANCES MOUNTED IN STANDARD POSITIONS =================
 
-    // --- 1. WALL SCONCE (LAMPU DINDING) ON THE LEFT ---
-    const sconceX = -0.55;
-    const sconceY = 1.35;
-    const sconceZ = 2.45;
+    // --- 1. WALL SCONCES (LAMPU DINDING) - Cukup 1 Saja di Dinding Belakang ---
+    sconceGlowUpMatsRef.current = [];
+    sconceGlowDownMatsRef.current = [];
+    spotLightUpsRef.current = [];
+    spotLightDownsRef.current = [];
+    pointLightSconcesRef.current = [];
 
-    // Mounting bracket plate on wall
-    const sconcePlate = MeshBuilder.CreateBox(
-      "sconcePlate",
-      { width: 0.07, height: 0.07, depth: 0.012 },
+    tableMat.maxSimultaneousLights = 16;
+    floorMat.maxSimultaneousLights = 16;
+    wallMat.maxSimultaneousLights = 16;
+
+    const sconcesConfig = [
+      { x: -0.65, y: 1.7, z: 1.98, rotY: 0 },          // Back wall left
+    ];
+
+    sconcesConfig.forEach((cfg, idx) => {
+      // Plate
+      const plate = MeshBuilder.CreateBox(`wallLightPlate_${idx}`, { width: 0.06, height: 0.06, depth: 0.01 }, scene);
+      plate.material = goldMat;
+
+      // Arm
+      const arm = MeshBuilder.CreateCylinder(`wallLightArm_${idx}`, { height: 0.06, diameter: 0.012 }, scene);
+      arm.rotation.x = Math.PI / 2;
+      arm.material = goldMat;
+
+      // Body
+      const body = MeshBuilder.CreateCylinder(`wallLightBody_${idx}`, { height: 0.18, diameter: 0.045 }, scene);
+      body.material = goldMat;
+
+      // Glowing caps (up and down)
+      const capUp = MeshBuilder.CreateCylinder(`wallLightCapUp_${idx}`, { height: 0.008, diameter: 0.042 }, scene);
+      const gMatUp = new StandardMaterial(`sGlowUpMat_${idx}`, scene);
+      gMatUp.diffuseColor = new Color3(0.5, 0.5, 0.5);
+      gMatUp.emissiveColor = new Color3(0.05, 0.05, 0.05);
+      capUp.material = gMatUp;
+      sconceGlowUpMatsRef.current.push(gMatUp);
+
+      const capDown = MeshBuilder.CreateCylinder(`wallLightCapDown_${idx}`, { height: 0.008, diameter: 0.042 }, scene);
+      const gMatDown = new StandardMaterial(`sGlowDownMat_${idx}`, scene);
+      gMatDown.diffuseColor = new Color3(0.5, 0.5, 0.5);
+      gMatDown.emissiveColor = new Color3(0.05, 0.05, 0.05);
+      capDown.material = gMatDown;
+      sconceGlowDownMatsRef.current.push(gMatDown);
+
+      // Parent transform node to easily align orientation
+      const node = new TransformNode(`sconceNode_${idx}`, scene);
+      node.position.set(cfg.x, cfg.y, cfg.z);
+      node.rotation.y = cfg.rotY;
+
+      plate.parent = node;
+      arm.parent = node;
+      body.parent = node;
+      capUp.parent = node;
+      capDown.parent = node;
+
+      // Relative offsets in local space (facing negative Z direction inside node)
+      plate.position.set(0, 0, -0.005);
+      arm.position.set(0, 0, -0.035);
+      body.position.set(0, 0, -0.065);
+      capUp.position.set(0, 0.09, -0.065);
+      capDown.position.set(0, -0.09, -0.065);
+
+      // Setup pointlight relative to parent
+      const localLightPos = new Vector3(0, -0.12, -0.08);
+      const worldLightPos = Vector3.TransformCoordinates(localLightPos, node.getWorldMatrix());
+      const pointLight = new PointLight(`pointLightSconce_${idx}`, worldLightPos, scene);
+      pointLight.range = 2.0;
+      pointLight.intensity = 0;
+      pointLightSconcesRef.current.push(pointLight);
+
+      // Setup spot light down
+      const localSpotDownPos = new Vector3(0, -0.1, -0.065);
+      const worldSpotDownPos = Vector3.TransformCoordinates(localSpotDownPos, node.getWorldMatrix());
+      const localSpotDownDir = new Vector3(0, -1, -0.05);
+      const worldSpotDownDir = Vector3.TransformNormal(localSpotDownDir, node.getWorldMatrix());
+      const spotD = new SpotLight(`wallLightSpotDown_${idx}`, worldSpotDownPos, worldSpotDownDir, Math.PI / 2.8, 3, scene);
+      spotD.range = 2.0;
+      spotD.intensity = 0;
+      spotLightDownsRef.current.push(spotD);
+
+      // Setup spot light up
+      const localSpotUpPos = new Vector3(0, 0.1, -0.065);
+      const worldSpotUpPos = Vector3.TransformCoordinates(localSpotUpPos, node.getWorldMatrix());
+      const localSpotUpDir = new Vector3(0, 1, -0.05);
+      const worldSpotUpDir = Vector3.TransformNormal(localSpotUpDir, node.getWorldMatrix());
+      const spotU = new SpotLight(`wallLightSpotUp_${idx}`, worldSpotUpPos, worldSpotUpDir, Math.PI / 2.8, 3, scene);
+      spotU.range = 1.8;
+      spotU.intensity = 0;
+      spotLightUpsRef.current.push(spotU);
+    });
+
+    // --- 2. CEILING LED STRIP & HANGING CEILING LAMP (LAMPU UTAMA) ---
+    const ledStripBack = MeshBuilder.CreateBox(
+      "ceilingDome_back",
+      { width: 3.0, height: 0.015, depth: 0.02 },
       scene
     );
-    sconcePlate.position.set(sconceX, sconceY, sconceZ - 0.006);
-    sconcePlate.material = goldMat;
-
-    // Connecting arm
-    const sconceArm = MeshBuilder.CreateCylinder(
-      "sconceArm",
-      { height: 0.08, diameter: 0.015 },
+    ledStripBack.position.set(0, 2.19, 2.0);
+    
+    const ledStripLeft = MeshBuilder.CreateBox(
+      "ceilingDome_left",
+      { width: 0.02, height: 0.015, depth: 2.0 },
       scene
     );
-    sconceArm.position.set(sconceX, sconceY, sconceZ - 0.045);
-    sconceArm.rotation.x = Math.PI / 2;
-    sconceArm.material = goldMat;
+    ledStripLeft.position.set(-1.5, 2.19, 1.0);
 
-    // Sconce cylindrical body
-    const sconceBody = MeshBuilder.CreateCylinder(
-      "wallLightBody",
-      { height: 0.22, diameter: 0.052 },
+    const ledStripRight = MeshBuilder.CreateBox(
+      "ceilingDome_right",
+      { width: 0.02, height: 0.015, depth: 2.0 },
       scene
     );
-    sconceBody.position.set(sconceX, sconceY, sconceZ - 0.085);
-    sconceBody.material = goldMat;
+    ledStripRight.position.set(1.5, 2.19, 1.0);
 
-    // Glowing emitter caps (Up and Down)
-    const sconceCapUp = MeshBuilder.CreateCylinder(
-      "sconceCapUp",
-      { height: 0.01, diameter: 0.048 },
+    const ledStripFront = MeshBuilder.CreateBox(
+      "ceilingDome_front",
+      { width: 3.0, height: 0.015, depth: 0.02 },
       scene
     );
-    sconceCapUp.position.set(sconceX, sconceY + 0.111, sconceZ - 0.085);
-    const sGlowUpMat = new StandardMaterial("sGlowUpMat", scene);
-    sGlowUpMat.diffuseColor = new Color3(0.5, 0.5, 0.5);
-    sGlowUpMat.emissiveColor = new Color3(0.05, 0.05, 0.05);
-    sconceCapUp.material = sGlowUpMat;
-    sconceGlowUpMatRef.current = sGlowUpMat;
+    ledStripFront.position.set(0, 2.19, 0.0);
 
-    const sconceCapDown = MeshBuilder.CreateCylinder(
-      "sconceCapDown",
-      { height: 0.01, diameter: 0.048 },
-      scene
-    );
-    sconceCapDown.position.set(sconceX, sconceY - 0.111, sconceZ - 0.085);
-    const sGlowDownMat = new StandardMaterial("sGlowDownMat", scene);
-    sGlowDownMat.diffuseColor = new Color3(0.5, 0.5, 0.5);
-    sGlowDownMat.emissiveColor = new Color3(0.05, 0.05, 0.05);
-    sconceCapDown.material = sGlowDownMat;
-    sconceGlowDownMatRef.current = sGlowDownMat;
-
-    // Compact PointLight for Wall Sconce general ambient
-    const pointLightSconce = new PointLight(
-      "pointLightSconce",
-      new Vector3(sconceX, sconceY - 0.15, sconceZ - 0.1),
-      scene
-    );
-    pointLightSconce.range = 2.5;
-    pointLightSconce.intensity = 0;
-    pointLightSconceRef.current = pointLightSconce;
-
-    // Wall washers (Up & Down)
-    const spotDown = new SpotLight(
-      "wallLightSpotDown",
-      new Vector3(sconceX, sconceY - 0.12, sconceZ - 0.085),
-      new Vector3(0, -1, -0.05),
-      Math.PI / 2.8,
-      3,
-      scene
-    );
-    spotDown.range = 2.4;
-    spotDown.intensity = 0;
-    spotLightDownRef.current = spotDown;
-
-    const spotUp = new SpotLight(
-      "wallLightSpotUp",
-      new Vector3(sconceX, sconceY + 0.12, sconceZ - 0.085),
-      new Vector3(0, 1, -0.05),
-      Math.PI / 2.8,
-      3,
-      scene
-    );
-    spotUp.range = 2.2;
-    spotUp.intensity = 0;
-    spotLightUpRef.current = spotUp;
-
-    // --- 2. CEILING DOME LAMP (LAMPU PLAFON) IN THE UPPER MIDDLE ---
-    const ceilingX = 0.0;
-    const ceilingY = 1.95;
-    const ceilingZ = 2.45;
-
-    // Sleek geometric circular recess dome
-    const ceilingRecess = MeshBuilder.CreateCylinder(
-      "ceilingRecess",
-      { height: 0.015, diameter: 0.22 },
-      scene
-    );
-    ceilingRecess.position.set(ceilingX, ceilingY, ceilingZ - 0.008);
-    ceilingRecess.rotation.x = Math.PI / 2;
-    ceilingRecess.material = metalMat;
-
-    // Inside glowing light dome
-    const ceilingDome = MeshBuilder.CreateSphere(
-      "ceilingDomeMesh",
-      { diameterX: 0.18, diameterY: 0.08, diameterZ: 0.18, slice: 0.5 },
-      scene
-    );
-    ceilingDome.position.set(ceilingX, ceilingY, ceilingZ - 0.015);
-    ceilingDome.rotation.x = Math.PI / 2;
     const ceilingGlowMat = new StandardMaterial("ceilingGlowMat", scene);
     ceilingGlowMat.diffuseColor = new Color3(0.5, 0.5, 0.5);
     ceilingGlowMat.emissiveColor = new Color3(0.05, 0.05, 0.05);
-    ceilingDome.material = ceilingGlowMat;
+    
+    ledStripBack.material = ceilingGlowMat;
+    ledStripLeft.material = ceilingGlowMat;
+    ledStripRight.material = ceilingGlowMat;
+    ledStripFront.material = ceilingGlowMat;
     ceilingGlowMatRef.current = ceilingGlowMat;
 
-    // PointLight for Ceiling Dome (Shines down on the whole scene)
-    const pointLightCeiling = new PointLight(
-      "pointLightCeiling",
-      new Vector3(ceilingX, ceilingY - 0.1, ceilingZ - 0.15),
+    // --- 2b. HANGING CEILING LAMP (LAMPU UTAMA) ---
+    // Cord hanging down from (0, 2.19, 1.0) to (0, 1.99, 1.0) (shorter, higher up)
+    const hangingCord = MeshBuilder.CreateCylinder(
+      "ceilingDome_cord",
+      { height: 0.2, diameter: 0.006 },
       scene
     );
-    pointLightCeiling.range = 4.0;
+    hangingCord.position.set(0, 2.09, 1.0);
+    const cordMat = new StandardMaterial("cordMat", scene);
+    cordMat.diffuseColor = new Color3(0.12, 0.12, 0.12);
+    hangingCord.material = cordMat;
+
+    // Modern dome shade matching wall lights - raised higher
+    const hangingShade = MeshBuilder.CreateCylinder(
+      "ceilingDome_shade",
+      { height: 0.12, diameterTop: 0.04, diameterBottom: 0.22, tessellation: 24 },
+      scene
+    );
+    hangingShade.position.set(0, 1.93, 1.0);
+    hangingShade.material = goldMat;
+
+    // Glowing pendant bulb - raised higher
+    const hangingBulb = MeshBuilder.CreateSphere(
+      "ceilingDome_bulb",
+      { diameter: 0.08 },
+      scene
+    );
+    hangingBulb.position.set(0, 1.88, 1.0);
+    hangingBulb.material = ceilingGlowMat;
+
+    // PointLight for Ceiling LED Strip & Pendant (Cast smooth, wide-range room ambient light - Adjusted to 5.0m range for natural coverage)
+    const pointLightCeiling = new PointLight(
+      "pointLightCeiling",
+      new Vector3(0, 1.85, 1.0),
+      scene
+    );
+    pointLightCeiling.range = 5.0;
     pointLightCeiling.intensity = 0;
     pointLightCeilingRef.current = pointLightCeiling;
 
-    // --- 3. DESK STUDY LAMP (LAMPU BELAJAR) ON THE DESK ---
-    const deskLampX = -0.16;
-    const deskLampY = 0.81; // Desk base top
-    const deskLampZ = 0.28;
+    // --- 3. PREMIUM WIDE-SPREAD STUDY DESK LAMP (LAMPU BELAJAR PREMIUM) ---
+    const deskLampX = -0.45;
+    const deskLampY = 0.79; // Desk base top
+    const deskLampZ = 1.5;
 
     // Heavy round base
     const lampBase = MeshBuilder.CreateCylinder(
       "lampBase",
-      { height: 0.015, diameter: 0.075 },
+      { height: 0.015, diameter: 0.085 },
       scene
     );
     lampBase.position.set(deskLampX, deskLampY + 0.0075, deskLampZ);
     lampBase.material = metalMat;
 
-    // Sleek angled armature arm
-    const lampStem = MeshBuilder.CreateCylinder(
-      "lampStem",
-      { height: 0.24, diameter: 0.01 },
+    // Lower armature stem (angled up and forward)
+    const lampLowerStem = MeshBuilder.CreateCylinder(
+      "lampLowerStem",
+      { height: 0.22, diameter: 0.009 },
       scene
     );
-    lampStem.position.set(deskLampX, deskLampY + 0.12, deskLampZ - 0.02);
-    lampStem.rotation.x = -Math.PI / 10;
-    lampStem.material = metalMat;
+    lampLowerStem.position.set(deskLampX, deskLampY + 0.11, deskLampZ);
+    lampLowerStem.rotation.x = -Math.PI / 8;
+    lampLowerStem.material = metalMat;
 
-    // Conical shade pointing downwards onto circuit area
-    const lampShade = MeshBuilder.CreateCylinder(
-      "deskLightBody",
-      { height: 0.065, diameterTop: 0.038, diameterBottom: 0.08 },
+    // Brass articulative joint sphere
+    const lampJoint = MeshBuilder.CreateSphere(
+      "lampJoint",
+      { diameter: 0.018 },
       scene
     );
-    lampShade.position.set(deskLampX, deskLampY + 0.24, deskLampZ - 0.08);
-    lampShade.rotation.x = Math.PI / 4;
+    lampJoint.position.set(deskLampX, deskLampY + 0.21, deskLampZ - 0.08);
+    lampJoint.material = goldMat;
+
+    // Upper armature stem (angled further forward)
+    const lampUpperStem = MeshBuilder.CreateCylinder(
+      "lampUpperStem",
+      { height: 0.22, diameter: 0.009 },
+      scene
+    );
+    lampUpperStem.position.set(deskLampX, deskLampY + 0.3, deskLampZ - 0.15);
+    lampUpperStem.rotation.x = -Math.PI / 4;
+    lampUpperStem.material = metalMat;
+
+    // Sleek wide horizontal bar lamp head (sebaran cahaya luas!)
+    const lampShade = MeshBuilder.CreateBox(
+      "deskLightBody",
+      { width: 0.24, height: 0.018, depth: 0.05 },
+      scene
+    );
+    lampShade.position.set(deskLampX + 0.08, deskLampY + 0.38, deskLampZ - 0.23);
+    lampShade.rotation.z = Math.PI / 24; // slightly tilted for realism
+    lampShade.rotation.x = Math.PI / 24;
     lampShade.material = metalMat;
 
-    // Small glowing emitter sphere
-    const lampBulb = MeshBuilder.CreateSphere(
+    // Flat wide glowing LED panel under the bar shade
+    const lampBulb = MeshBuilder.CreateBox(
       "lampBulbMesh",
-      { diameter: 0.03 },
+      { width: 0.22, height: 0.005, depth: 0.045 },
       scene
     );
-    lampBulb.position.set(deskLampX, deskLampY + 0.22, deskLampZ - 0.09);
+    lampBulb.position.set(deskLampX + 0.08, deskLampY + 0.37, deskLampZ - 0.23);
+    lampBulb.rotation.z = Math.PI / 24;
+    lampBulb.rotation.x = Math.PI / 24;
     const deskLampGlowMat = new StandardMaterial("deskLampGlowMat", scene);
     deskLampGlowMat.diffuseColor = new Color3(0.5, 0.5, 0.5);
     deskLampGlowMat.emissiveColor = new Color3(0.05, 0.05, 0.05);
     lampBulb.material = deskLampGlowMat;
     deskLampGlowMatRef.current = deskLampGlowMat;
 
-    // PointLight focused onto worktable components
+    // Natural point light positioned underneath the lamp head (range: 2.2m)
     const pointLightDesk = new PointLight(
       "pointLightDesk",
-      new Vector3(deskLampX, deskLampY + 0.2, deskLampZ - 0.1),
+      new Vector3(deskLampX + 0.08, deskLampY + 0.34, deskLampZ - 0.23),
       scene
     );
-    pointLightDesk.range = 2.0;
+    pointLightDesk.range = 2.2;
     pointLightDesk.intensity = 0;
     pointLightDeskRef.current = pointLightDesk;
 
-    // --- 4. AIR CONDITIONER (AC) SPLIT UNIT ON THE RIGHT ---
+    // --- 4. AIR CONDITIONER (AC) SPLIT UNIT HIGH ON BACK WALL RIGHT ---
     const acX = 0.55;
-    const acY = 1.5;
-    const acZ = 2.44;
+    const acY = 1.75;
+    const acZ = 1.98;
 
     // AC Main Cabinet Chassis
     const acCabinet = MeshBuilder.CreateBox(
       "acChassis",
-      { width: 0.54, height: 0.17, depth: 0.13 },
+      { width: 0.48, height: 0.15, depth: 0.11 },
       scene
     );
-    acCabinet.position.set(acX, acY, acZ - 0.065);
+    acCabinet.position.set(acX, acY, acZ - 0.055);
     const acMat = new StandardMaterial("acMat", scene);
     acMat.diffuseColor = new Color3(0.95, 0.95, 0.95); // Glossy modern white
     acMat.specularColor = new Color3(0.5, 0.5, 0.5);
@@ -666,10 +1049,10 @@ export default function LampuSimulator({
     // AC Front Intake Grill
     const acGrill = MeshBuilder.CreateBox(
       "acGrill",
-      { width: 0.48, height: 0.04, depth: 0.004 },
+      { width: 0.42, height: 0.035, depth: 0.004 },
       scene
     );
-    acGrill.position.set(acX, acY + 0.05, acZ - 0.131);
+    acGrill.position.set(acX, acY + 0.04, acZ - 0.111);
     const grillMat = new StandardMaterial("grillMat", scene);
     grillMat.diffuseColor = new Color3(0.2, 0.2, 0.2);
     acGrill.material = grillMat;
@@ -677,10 +1060,10 @@ export default function LampuSimulator({
     // AC Air Louver Swing Flap
     const acFlap = MeshBuilder.CreateBox(
       "acFlap",
-      { width: 0.48, height: 0.015, depth: 0.06 },
+      { width: 0.42, height: 0.012, depth: 0.05 },
       scene
     );
-    acFlap.position.set(acX, acY - 0.084, acZ - 0.08);
+    acFlap.position.set(acX, acY - 0.074, acZ - 0.07);
     acFlap.rotation.x = Math.PI / 12;
     const flapMat = new StandardMaterial("flapMat", scene);
     flapMat.diffuseColor = new Color3(0.85, 0.85, 0.85);
@@ -689,10 +1072,10 @@ export default function LampuSimulator({
     // AC LED display on bottom right
     const acDisplay = MeshBuilder.CreateBox(
       "acDisplay",
-      { width: 0.06, height: 0.024, depth: 0.002 },
+      { width: 0.05, height: 0.02, depth: 0.002 },
       scene
     );
-    acDisplay.position.set(acX + 0.18, acY - 0.03, acZ - 0.131);
+    acDisplay.position.set(acX + 0.15, acY - 0.025, acZ - 0.111);
     const displayBackgroundMat = new StandardMaterial("displayBackgroundMat", scene);
     displayBackgroundMat.diffuseColor = new Color3(0.08, 0.08, 0.08);
     acDisplay.material = displayBackgroundMat;
@@ -700,10 +1083,10 @@ export default function LampuSimulator({
     // Glowing segment LED inside display
     const acDisplayLED = MeshBuilder.CreateBox(
       "acDisplayLED",
-      { width: 0.02, height: 0.012, depth: 0.004 },
+      { width: 0.018, height: 0.01, depth: 0.004 },
       scene
     );
-    acDisplayLED.position.set(acX + 0.18, acY - 0.03, acZ - 0.132);
+    acDisplayLED.position.set(acX + 0.15, acY - 0.025, acZ - 0.112);
     const acDisplayLEDMat = new StandardMaterial("acDisplayLEDMat", scene);
     acDisplayLEDMat.diffuseColor = new Color3(0.1, 0.1, 0.1);
     acDisplayLEDMat.emissiveColor = new Color3(0.0, 0.0, 0.0);
@@ -713,10 +1096,10 @@ export default function LampuSimulator({
     // COOLING AIR BREEZE FLOW MESH
     const acBreeze = MeshBuilder.CreateBox(
       "acBreeze",
-      { width: 0.46, height: 0.005, depth: 0.35 },
+      { width: 0.4, height: 0.004, depth: 0.3 },
       scene
     );
-    acBreeze.position.set(acX, acY - 0.22, acZ - 0.2);
+    acBreeze.position.set(acX, acY - 0.2, acZ - 0.15);
     acBreeze.rotation.x = Math.PI / 5; // blowing down-forward
     const breezeMat = new StandardMaterial("breezeMat", scene);
     breezeMat.diffuseColor = new Color3(0.3, 0.6, 0.95);
@@ -725,92 +1108,7 @@ export default function LampuSimulator({
     acBreeze.material = breezeMat;
     acBreezeMeshRef.current = acBreeze;
 
-    // ================= WIRES AND JUMPER CONNECTIONS =================
-
-    // 1. ESP32 to Relay logic jumpers (Thin control lines)
-    // GPIO 5, 18, 19, 21 mapped to Relays 1, 2, 3, 4
-    const espJumpers = [
-      { start: new Vector3(-0.38, 0.83, -0.21), end: new Vector3(-0.19, 0.825, -0.07), color: new Color3(0.9, 0.1, 0.1) }, // R1 - Red
-      { start: new Vector3(-0.38, 0.83, -0.17), end: new Vector3(-0.13, 0.825, -0.07), color: new Color3(0.1, 0.5, 0.9) }, // R2 - Blue
-      { start: new Vector3(-0.38, 0.83, -0.13), end: new Vector3(-0.07, 0.825, -0.07), color: new Color3(0.9, 0.8, 0.1) }, // R3 - Yellow
-      { start: new Vector3(-0.38, 0.83, -0.09), end: new Vector3(-0.01, 0.825, -0.07), color: new Color3(0.1, 0.8, 0.3) }, // R4 - Green
-    ];
-
-    espJumpers.forEach((wire, i) => {
-      const mid = new Vector3((wire.start.x + wire.end.x) / 2, 0.865, (wire.start.z + wire.end.z) / 2);
-      
-      const s1 = MeshBuilder.CreateCylinder(`wire1_${i}`, { height: wire.start.subtract(mid).length(), diameter: 0.0035 }, scene);
-      s1.position = wire.start.add(mid).scale(0.5);
-      s1.lookAt(wire.start);
-      s1.rotation.x += Math.PI / 2;
-
-      const s2 = MeshBuilder.CreateCylinder(`wire2_${i}`, { height: wire.end.subtract(mid).length(), diameter: 0.0035 }, scene);
-      s2.position = wire.end.add(mid).scale(0.5);
-      s2.lookAt(wire.end);
-      s2.rotation.x += Math.PI / 2;
-
-      const jumperMat = new StandardMaterial(`jumperMat_${i}`, scene);
-      jumperMat.diffuseColor = wire.color;
-      jumperMat.specularColor = new Color3(0.02, 0.02, 0.02);
-      s1.material = jumperMat;
-      s2.material = jumperMat;
-    });
-
-    // 2. Thick copper high voltage lines
-    // R1 -> Wall Sconce, R2 -> Ceiling Dome, R3 -> Desk Lamp, R4 -> PZEM CT coil -> AC unit
-    const copperPaths = [
-      // Wire 1: Relay 1 Out -> Wall Lamp
-      [
-        new Vector3(-0.19, 0.825, -0.21),
-        new Vector3(-0.25, 0.815, 0.05),
-        new Vector3(sconceX, 0.815, 0.4),
-        new Vector3(sconceX, sconceY - 0.15, sconceZ - 0.085),
-      ],
-      // Wire 2: Relay 2 Out -> Ceiling Lamp
-      [
-        new Vector3(-0.13, 0.825, -0.21),
-        new Vector3(-0.1, 0.815, 0.12),
-        new Vector3(ceilingX, 0.815, 0.45),
-        new Vector3(ceilingX, ceilingY - 0.1, ceilingZ - 0.05),
-      ],
-      // Wire 3: Relay 3 Out -> Desk Lamp
-      [
-        new Vector3(-0.07, 0.825, -0.21),
-        new Vector3(-0.06, 0.815, 0.08),
-        new Vector3(deskLampX, deskLampY + 0.01, deskLampZ),
-      ],
-      // Wire 4: Relay 4 Out -> PASSES EXACTLY THROUGH CT COIL TORUS -> Wall AC
-      [
-        new Vector3(-0.01, 0.825, -0.21),
-        new Vector3(0.04, 0.81, -0.1),
-        new Vector3(0.22, 0.84, -0.02), // CT COIL CENTER
-        new Vector3(0.22, 0.82, 0.12),
-        new Vector3(acX, 0.815, 0.5),
-        new Vector3(acX, acY - 0.12, acZ - 0.065),
-      ],
-    ];
-
-    const thickWireMat = new StandardMaterial("thickWireMat", scene);
-    thickWireMat.diffuseColor = new Color3(0.08, 0.08, 0.08); // heavy black insulating sleeve
-    thickWireMat.specularColor = new Color3(0.1, 0.1, 0.1);
-
-    copperPaths.forEach((pathPoints, wireIdx) => {
-      for (let i = 0; i < pathPoints.length - 1; i++) {
-        const p1 = pathPoints[i];
-        const p2 = pathPoints[i + 1];
-        const dist = p1.subtract(p2).length();
-
-        const wireCyl = MeshBuilder.CreateCylinder(
-          `copper_${wireIdx}_${i}`,
-          { height: dist, diameter: 0.0075 },
-          scene
-        );
-        wireCyl.position = p1.add(p2).scale(0.5);
-        wireCyl.lookAt(p1);
-        wireCyl.rotation.x += Math.PI / 2;
-        wireCyl.material = thickWireMat;
-      }
-    });
+    // ================= WIRES AND JUMPER CONNECTIONS REMOVED AS REQUESTED =================
 
     // ================= INTERACTION LISTENER =================
     // Clicking on lamps, AC, or relay cubes toggles their state
@@ -859,7 +1157,30 @@ export default function LampuSimulator({
 
     // 1. Room Ambient daylight intensity
     if (ambientLightRef.current) {
-      ambientLightRef.current.intensity = state.ambientLight / 100;
+      const baseIntensity = (state.ambientLight / 100) * 0.4;
+      const ch2 = state.channels[1];
+      if (ch2.isOn) {
+        // If ceiling lamp is ON, add a beautifully diffused, naturally tinted bounce light
+        const col2 = hexToColor3(ch2.color);
+        ambientLightRef.current.intensity = baseIntensity + 0.65; // Evenly distributed, bright ambient bounce
+        // Blend daylight color with lamp color for natural realistic lighting
+        ambientLightRef.current.diffuse = new Color3(
+          0.2 + col2.r * 0.5,
+          0.2 + col2.g * 0.5,
+          0.22 + col2.b * 0.5
+        );
+        // Realistic light-colored warm floor bounce reflection tinted with the lamp's color
+        ambientLightRef.current.groundColor = new Color3(
+          0.16 + col2.r * 0.35,
+          0.14 + col2.g * 0.3,
+          0.11 + col2.b * 0.25
+        );
+      } else {
+        // Just standard natural daylight
+        ambientLightRef.current.intensity = baseIntensity;
+        ambientLightRef.current.diffuse = new Color3(0.4, 0.45, 0.55); // soft daylight blue
+        ambientLightRef.current.groundColor = new Color3(0.12, 0.12, 0.16);
+      }
     }
 
     // 2. Pulse the blue ESP32 Status LED slightly to show WiFi activity
@@ -905,35 +1226,45 @@ export default function LampuSimulator({
     // --- Channel 1: Sconce Lamp (Wall) ---
     const ch1 = state.channels[0];
     const col1 = nextOnColors[0];
-    if (sconceGlowUpMatRef.current && sconceGlowDownMatRef.current) {
+    sconceGlowUpMatsRef.current.forEach((mat) => {
       if (ch1.isOn) {
-        sconceGlowUpMatRef.current.emissiveColor = col1;
-        sconceGlowUpMatRef.current.diffuseColor = col1;
-        sconceGlowDownMatRef.current.emissiveColor = col1;
-        sconceGlowDownMatRef.current.diffuseColor = col1;
+        mat.emissiveColor = col1.scale(0.35);
+        mat.diffuseColor = col1;
       } else {
-        sconceGlowUpMatRef.current.emissiveColor = new Color3(0.05, 0.05, 0.05);
-        sconceGlowUpMatRef.current.diffuseColor = new Color3(0.3, 0.3, 0.3);
-        sconceGlowDownMatRef.current.emissiveColor = new Color3(0.05, 0.05, 0.05);
-        sconceGlowDownMatRef.current.diffuseColor = new Color3(0.3, 0.3, 0.3);
+        mat.emissiveColor = new Color3(0.05, 0.05, 0.05);
+        mat.diffuseColor = new Color3(0.3, 0.3, 0.3);
       }
-    }
-    if (spotLightUpRef.current && spotLightDownRef.current && pointLightSconceRef.current) {
-      const intensity = ch1.isOn ? 3.0 : 0;
-      spotLightUpRef.current.intensity = intensity;
-      spotLightUpRef.current.diffuse = col1;
-      spotLightDownRef.current.intensity = intensity;
-      spotLightDownRef.current.diffuse = col1;
-      pointLightSconceRef.current.intensity = ch1.isOn ? 1.2 : 0;
-      pointLightSconceRef.current.diffuse = col1;
-    }
+    });
+    sconceGlowDownMatsRef.current.forEach((mat) => {
+      if (ch1.isOn) {
+        mat.emissiveColor = col1.scale(0.35);
+        mat.diffuseColor = col1;
+      } else {
+        mat.emissiveColor = new Color3(0.05, 0.05, 0.05);
+        mat.diffuseColor = new Color3(0.3, 0.3, 0.3);
+      }
+    });
+
+    const intensity = ch1.isOn ? 0.6 : 0;
+    spotLightUpsRef.current.forEach((light) => {
+      light.intensity = intensity;
+      light.diffuse = col1;
+    });
+    spotLightDownsRef.current.forEach((light) => {
+      light.intensity = intensity;
+      light.diffuse = col1;
+    });
+    pointLightSconcesRef.current.forEach((light) => {
+      light.intensity = ch1.isOn ? 0.15 : 0;
+      light.diffuse = col1;
+    });
 
     // --- Channel 2: Ceiling Dome Lamp ---
     const ch2 = state.channels[1];
     const col2 = nextOnColors[1];
     if (ceilingGlowMatRef.current) {
       if (ch2.isOn) {
-        ceilingGlowMatRef.current.emissiveColor = col2;
+        ceilingGlowMatRef.current.emissiveColor = col2.scale(0.85); // Bright glowing filament look
         ceilingGlowMatRef.current.diffuseColor = col2;
       } else {
         ceilingGlowMatRef.current.emissiveColor = new Color3(0.05, 0.05, 0.05);
@@ -941,8 +1272,9 @@ export default function LampuSimulator({
       }
     }
     if (pointLightCeilingRef.current) {
-      pointLightCeilingRef.current.intensity = ch2.isOn ? 3.5 : 0;
+      pointLightCeilingRef.current.intensity = ch2.isOn ? 2.0 : 0; // Beautiful, clear room-filling illumination
       pointLightCeilingRef.current.diffuse = col2;
+      pointLightCeilingRef.current.range = 8.0; // wider range for clear, natural coverage of all objects
     }
 
     // --- Channel 3: Desk Lamp ---
@@ -950,7 +1282,7 @@ export default function LampuSimulator({
     const col3 = nextOnColors[2];
     if (deskLampGlowMatRef.current) {
       if (ch3.isOn) {
-        deskLampGlowMatRef.current.emissiveColor = col3;
+        deskLampGlowMatRef.current.emissiveColor = col3.scale(0.35);
         deskLampGlowMatRef.current.diffuseColor = col3;
       } else {
         deskLampGlowMatRef.current.emissiveColor = new Color3(0.05, 0.05, 0.05);
@@ -958,7 +1290,7 @@ export default function LampuSimulator({
       }
     }
     if (pointLightDeskRef.current) {
-      pointLightDeskRef.current.intensity = ch3.isOn ? 2.2 : 0;
+      pointLightDeskRef.current.intensity = ch3.isOn ? 0.5 : 0; // Natural, focused cozy desk light intensity
       pointLightDeskRef.current.diffuse = col3;
     }
 

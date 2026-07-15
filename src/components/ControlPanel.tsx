@@ -93,7 +93,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
       // Wall light off, Ceiling light on (LED), Desk light off, AC active on 24°C Medium Fan
       updated = state.channels.map((ch) => {
         if (ch.id === 1) return { ...ch, isOn: false };
-        if (ch.id === 2) return { ...ch, isOn: true, type: "LED", power: 18 };
+        if (ch.id === 2) return { ...ch, isOn: true, type: "LED", power: 40 };
         if (ch.id === 3) return { ...ch, isOn: false };
         if (ch.id === 4) return { ...ch, isOn: true };
         return ch;
