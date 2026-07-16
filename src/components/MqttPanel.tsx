@@ -59,6 +59,69 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
   const [testPayload, setTestPayload] = useState("ON");
 
   const clientRef = useRef<MqttClient | null>(null);
+  const lastStateRef = useRef<string>("");
+
+  // Keep state and onChange refs updated to prevent stale closures in MQTT listeners
+  const stateRef = useRef(state);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  // Interactive control tracking to avoid feedback loops
+  interface InteractiveState {
+    relay1: boolean;
+    relay2: boolean;
+    relay3: boolean;
+    relay4: boolean;
+    acTempSetting: number;
+    acFanSpeed: string;
+    ambientLight: number;
+  }
+
+  const getInteractiveState = (s: LightState): InteractiveState => {
+    return {
+      relay1: s.channels[0]?.isOn || false,
+      relay2: s.channels[1]?.isOn || false,
+      relay3: s.channels[2]?.isOn || false,
+      relay4: s.channels[3]?.isOn || false,
+      acTempSetting: s.acTempSetting,
+      acFanSpeed: s.acFanSpeed,
+      ambientLight: s.ambientLight
+    };
+  };
+
+  const prevInteractiveStateRef = useRef<InteractiveState | null>(null);
+  const lastReceivedInteractiveStateRef = useRef<InteractiveState | null>(null);
+
+  // Initialize previous state ref on mount or when connected
+  useEffect(() => {
+    if (!prevInteractiveStateRef.current) {
+      prevInteractiveStateRef.current = getInteractiveState(state);
+    }
+  }, [state]);
+
+  // Helper to update state from an incoming MQTT message
+  const updateStateFromMqtt = (updater: (prev: LightState) => Partial<LightState>) => {
+    const partialUpdate = updater(stateRef.current);
+    const nextState = { ...stateRef.current, ...partialUpdate };
+    if (partialUpdate.channels) {
+      nextState.channels = partialUpdate.channels;
+    }
+
+    const nextInteractive = getInteractiveState(nextState);
+
+    // Update both refs immediately to prevent the publish useEffect from considering this a local user change
+    lastReceivedInteractiveStateRef.current = nextInteractive;
+    prevInteractiveStateRef.current = nextInteractive;
+
+    onChangeRef.current(partialUpdate);
+  };
 
   // Persist config
   useEffect(() => {
@@ -67,13 +130,17 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
 
   // Helper to update specific relay state
   const updateRelayState = (id: number, isOn: boolean) => {
-    const updated = state.channels.map((ch) => {
+    const currentChannel = stateRef.current.channels.find(ch => ch.id === id);
+    if (currentChannel && currentChannel.isOn === isOn) {
+      return; // No change, do not trigger onChange to prevent loop
+    }
+    const updated = stateRef.current.channels.map((ch) => {
       if (ch.id === id) {
         return { ...ch, isOn };
       }
       return ch;
     });
-    onChange({ channels: updated });
+    onChangeRef.current({ channels: updated });
   };
 
   // Add a log entry
@@ -102,8 +169,12 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
     addLog("status", "system", `Menghubungkan ke ${config.brokerUrl}...`);
 
     try {
+      // Generate a unique client ID per tab to prevent brokers from disconnecting other tabs
+      const tabUniqueSuffix = Math.random().toString(36).substring(2, 6);
+      const uniqueClientId = `${config.clientId}_tab_${tabUniqueSuffix}`;
+
       const options = {
-        clientId: config.clientId,
+        clientId: uniqueClientId,
         username: config.username || undefined,
         password: config.password || undefined,
         clean: true,
@@ -117,17 +188,31 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
       mqttClient.on("connect", () => {
         setStatus("connected");
         setClient(mqttClient);
-        addLog("status", "system", "ESP32 berhasil terhubung ke broker MQTT!");
+        addLog("status", "system", `Berhasil terhubung ke broker! Client ID: ${uniqueClientId}`);
 
-        // Subscriptions for 4 individual relays + bulk control
+        // Subscriptions for 4 individual relays + AC controls + ambient + bulk control + state statuses
         const subTopics = [
-          ...state.channels.map(ch => `${config.topicPrefix}/relay${ch.id}/set`),
-          `${config.topicPrefix}/relay/all/set`
+          `${config.topicPrefix}/relay1/set`,
+          `${config.topicPrefix}/relay2/set`,
+          `${config.topicPrefix}/relay3/set`,
+          `${config.topicPrefix}/relay4/set`,
+          `${config.topicPrefix}/relay1/status`,
+          `${config.topicPrefix}/relay2/status`,
+          `${config.topicPrefix}/relay3/status`,
+          `${config.topicPrefix}/relay4/status`,
+          `${config.topicPrefix}/ac/tempSetting/set`,
+          `${config.topicPrefix}/ac/tempSetting/status`,
+          `${config.topicPrefix}/ac/fanSpeed/set`,
+          `${config.topicPrefix}/ac/fanSpeed/status`,
+          `${config.topicPrefix}/ambient/set`,
+          `${config.topicPrefix}/ambient/status`,
+          `${config.topicPrefix}/relay/all/set`,
+          `${config.topicPrefix}/status`
         ];
 
         mqttClient.subscribe(subTopics, (err) => {
           if (!err) {
-            addLog("status", "system", `Berhasil subscribe ke topik kontrol: ${config.topicPrefix}/relay/#`);
+            addLog("status", "system", `Berhasil subscribe ke topik kontrol & status: ${config.topicPrefix}/#`);
           } else {
             addLog("status", "system", `Gagal subscribe: ${err.message}`);
           }
@@ -137,24 +222,24 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
         if (config.publishStatus) {
           const statusTopic = `${config.topicPrefix}/status`;
           const statusPayload = JSON.stringify({
-            uptime: state.uptime,
-            espTemp: state.espTemperature,
-            vcc: state.relayVcc,
+            uptime: stateRef.current.uptime,
+            espTemp: stateRef.current.espTemperature,
+            vcc: stateRef.current.relayVcc,
             pzem: {
-              voltage: state.pzemVoltage,
-              current: state.pzemCurrent,
-              power: state.pzemPower,
-              energy: state.pzemEnergy,
-              frequency: state.pzemFrequency,
-              pf: state.pzemPf,
+              voltage: stateRef.current.pzemVoltage,
+              current: stateRef.current.pzemCurrent,
+              power: stateRef.current.pzemPower,
+              energy: stateRef.current.pzemEnergy,
+              frequency: stateRef.current.pzemFrequency,
+              pf: stateRef.current.pzemPf,
             },
             ac: {
-              tempSetting: state.acTempSetting,
-              fanSpeed: state.acFanSpeed,
-              compressorState: state.acCompressorState,
-              roomTemp: state.roomTemperature,
+              tempSetting: stateRef.current.acTempSetting,
+              fanSpeed: stateRef.current.acFanSpeed,
+              compressorState: stateRef.current.acCompressorState,
+              roomTemp: stateRef.current.roomTemperature,
             },
-            relays: state.channels.map(c => ({ id: c.id, name: c.name, isOn: c.isOn }))
+            relays: stateRef.current.channels.map(c => ({ id: c.id, name: c.name, isOn: c.isOn }))
           });
           mqttClient.publish(statusTopic, statusPayload, { retain: true });
           addLog("out", statusTopic, statusPayload);
@@ -165,40 +250,132 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
         const payload = message.toString();
         addLog("in", topic, payload);
 
-        // Process message and update State
         try {
-          const powerVal = payload.trim().toUpperCase();
-          const isOn = powerVal === "ON" || powerVal === "1" || powerVal === "TRUE" || powerVal === "HIGH";
+          const cleanTopic = topic.trim();
 
-          const match = topic.match(/relay(\d)\/set$/);
-          if (match) {
-            const id = parseInt(match[1], 10);
-            updateRelayState(id, isOn);
-          } else if (topic.endsWith("/relay/all/set")) {
-            // Support comma-separated "ON,ON,OFF,OFF" or JSON array for 4 channels
-            if (payload.includes(",")) {
-              const parts = payload.split(",");
-              const nextChannels = state.channels.map((ch, i) => {
-                const part = parts[i]?.trim().toUpperCase();
-                if (part) {
-                  return { ...ch, isOn: part === "ON" || part === "1" || part === "TRUE" || part === "HIGH" };
+          // 1. Check individual relay set / status
+          const relayMatch = cleanTopic.match(/relay(\d)\/(set|status)$/);
+          if (relayMatch) {
+            const id = parseInt(relayMatch[1], 10);
+            const isOn = payload.toUpperCase() === "ON" || payload === "1" || payload.toUpperCase() === "TRUE" || payload.toUpperCase() === "HIGH";
+
+            updateStateFromMqtt((prev) => {
+              const updated = prev.channels.map((ch) => {
+                if (ch.id === id) {
+                  return { ...ch, isOn };
                 }
                 return ch;
               });
-              onChange({ channels: nextChannels });
-            } else {
-              const bools = JSON.parse(payload);
-              if (Array.isArray(bools)) {
-                const nextChannels = state.channels.map((ch, i) => {
-                  if (typeof bools[i] === "boolean") {
-                    return { ...ch, isOn: bools[i] };
+              return { channels: updated };
+            });
+            return;
+          }
+
+          // 2. Check AC temperature setting
+          if (cleanTopic.endsWith("/ac/tempSetting/set") || cleanTopic.endsWith("/ac/tempSetting/status")) {
+            const temp = parseInt(payload, 10);
+            if (!isNaN(temp)) {
+              updateStateFromMqtt(() => ({ acTempSetting: temp }));
+            }
+            return;
+          }
+
+          // 3. Check AC fan speed
+          if (cleanTopic.endsWith("/ac/fanSpeed/set") || cleanTopic.endsWith("/ac/fanSpeed/status")) {
+            const speed = payload.trim();
+            if (speed === "Low" || speed === "Medium" || speed === "High") {
+              updateStateFromMqtt(() => ({ acFanSpeed: speed as "Low" | "Medium" | "High" }));
+            }
+            return;
+          }
+
+          // 4. Check Ambient Light setting
+          if (cleanTopic.endsWith("/ambient/set") || cleanTopic.endsWith("/ambient/status")) {
+            const ambient = parseInt(payload, 10);
+            if (!isNaN(ambient)) {
+              updateStateFromMqtt(() => ({ ambientLight: ambient }));
+            }
+            return;
+          }
+
+          // 5. Check bulk control: relay/all/set
+          if (cleanTopic.endsWith("/relay/all/set")) {
+            if (payload.includes(",")) {
+              const parts = payload.split(",");
+              updateStateFromMqtt((prev) => {
+                const updated = prev.channels.map((ch, i) => {
+                  const part = parts[i]?.trim().toUpperCase();
+                  if (part) {
+                    return { ...ch, isOn: part === "ON" || part === "1" || part === "TRUE" || part === "HIGH" };
                   }
                   return ch;
                 });
-                onChange({ channels: nextChannels });
+                return { channels: updated };
+              });
+            } else {
+              try {
+                const bools = JSON.parse(payload);
+                if (Array.isArray(bools)) {
+                  updateStateFromMqtt((prev) => {
+                    const updated = prev.channels.map((ch, i) => {
+                      if (typeof bools[i] === "boolean") {
+                        return { ...ch, isOn: bools[i] };
+                      }
+                      return ch;
+                    });
+                    return { channels: updated };
+                  });
+                }
+              } catch (e) {
+                // Ignore parsing errors
               }
             }
+            return;
           }
+
+          // 6. Check full /status topic
+          if (cleanTopic.endsWith("/status")) {
+            try {
+              const telemetry = JSON.parse(payload);
+              if (telemetry && typeof telemetry === "object") {
+                updateStateFromMqtt((prev) => {
+                  const nextChannels = prev.channels.map((ch) => {
+                    const matched = telemetry.relays?.find((r: any) => r.id === ch.id);
+                    if (matched) {
+                      return {
+                        ...ch,
+                        isOn: matched.isOn,
+                        power: matched.power !== undefined ? matched.power : ch.power,
+                        bulbTemperature: matched.temp !== undefined ? matched.temp : ch.bulbTemperature
+                      };
+                    }
+                    return ch;
+                  });
+
+                  return {
+                    uptime: typeof telemetry.uptime === "number" ? telemetry.uptime : prev.uptime,
+                    espTemperature: typeof telemetry.espTemp === "number" ? telemetry.espTemperature : prev.espTemperature,
+                    relayVcc: typeof telemetry.vcc === "number" ? telemetry.relayVcc : prev.relayVcc,
+                    pzemVoltage: telemetry.pzem?.voltage !== undefined ? telemetry.pzem.voltage : prev.pzemVoltage,
+                    pzemCurrent: telemetry.pzem?.current !== undefined ? telemetry.pzem.current : prev.pzemCurrent,
+                    pzemPower: telemetry.pzem?.power !== undefined ? telemetry.pzem.power : prev.pzemPower,
+                    pzemEnergy: telemetry.pzem?.energy !== undefined ? telemetry.pzem.energy : prev.pzemEnergy,
+                    pzemFrequency: telemetry.pzem?.frequency !== undefined ? telemetry.pzem.frequency : prev.pzemFrequency,
+                    pzemPf: telemetry.pzem?.pf !== undefined ? telemetry.pzem.pf : prev.pzemPf,
+                    acTempSetting: telemetry.ac?.tempSetting !== undefined ? telemetry.ac.tempSetting : prev.acTempSetting,
+                    acFanSpeed: telemetry.ac?.fanSpeed !== undefined ? telemetry.ac.fanSpeed : prev.acFanSpeed,
+                    acCompressorState: telemetry.ac?.compressorState !== undefined ? telemetry.ac.compressorState : prev.acCompressorState,
+                    roomTemperature: telemetry.ac?.roomTemp !== undefined ? telemetry.ac.roomTemp : prev.roomTemperature,
+                    channels: nextChannels
+                  };
+                });
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+            return;
+          }
+
         } catch (e: any) {
           addLog("status", "error", `Gagal parsing payload MQTT: ${e.message}`);
         }
@@ -229,47 +406,107 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
     };
   }, []);
 
-  // Publish state updates automatically when connected (includes PZEM & AC states)
-  const lastStateRef = useRef<string>("");
+  // Auto-connect to MQTT on mount
   useEffect(() => {
-    if (client && status === "connected" && config.publishStatus) {
-      const statusTopic = `${config.topicPrefix}/status`;
-      const telemetryObj = {
-        uptime: state.uptime,
-        espTemp: state.espTemperature,
-        vcc: state.relayVcc,
-        pzem: {
-          voltage: state.pzemVoltage,
-          current: state.pzemCurrent,
-          power: state.pzemPower,
-          energy: state.pzemEnergy,
-          frequency: state.pzemFrequency,
-          pf: state.pzemPf,
-        },
-        ac: {
-          tempSetting: state.acTempSetting,
-          fanSpeed: state.acFanSpeed,
-          compressorState: state.acCompressorState,
-          roomTemp: state.roomTemperature,
-        },
-        relays: state.channels.map(c => ({ id: c.id, name: c.name, isOn: c.isOn, temp: c.bulbTemperature, power: c.power }))
-      };
-      const serialized = JSON.stringify(telemetryObj);
-      
-      // Prevent redundant publishes (or pub every 3s during steady state to keep dashboards live)
-      if (lastStateRef.current !== serialized) {
-        lastStateRef.current = serialized;
-        
+    const timer = setTimeout(() => {
+      if (!clientRef.current && status === "disconnected") {
+        handleConnect();
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Publish state updates ONLY when triggered locally by the user (filters out MQTT-received updates)
+  useEffect(() => {
+    if (client && status === "connected") {
+      const currentInteractive = getInteractiveState(state);
+      const prev = prevInteractiveStateRef.current;
+
+      if (!prev) {
+        prevInteractiveStateRef.current = currentInteractive;
+        return;
+      }
+
+      const hasChanged = JSON.stringify(currentInteractive) !== JSON.stringify(prev);
+
+      if (hasChanged) {
+        // Determine if this change was triggered from an incoming MQTT message
+        const isFromMqtt = lastReceivedInteractiveStateRef.current && 
+                           JSON.stringify(currentInteractive) === JSON.stringify(lastReceivedInteractiveStateRef.current);
+
+        // Always update the prev ref to match current state
+        prevInteractiveStateRef.current = currentInteractive;
+
+        if (isFromMqtt) {
+          // Suppress publishing because this change was triggered by MQTT
+          return;
+        }
+
+        // Trigger user control publishing (local user change!)
         setIsPublishing(true);
-        // Publish main status JSON
-        client.publish(statusTopic, serialized, { qos: 0 });
-        addLog("out", statusTopic, serialized);
-        
-        // Also publish individual status for each relay
-        state.channels.forEach((ch) => {
-          client.publish(`${config.topicPrefix}/relay${ch.id}/status`, ch.isOn ? "ON" : "OFF", { qos: 0, retain: true });
-        });
-        
+
+        // 1. Publish individual relay updates
+        if (currentInteractive.relay1 !== prev.relay1) {
+          client.publish(`${config.topicPrefix}/relay1/set`, currentInteractive.relay1 ? "ON" : "OFF", { qos: 0 });
+          client.publish(`${config.topicPrefix}/relay1/status`, currentInteractive.relay1 ? "ON" : "OFF", { qos: 0, retain: true });
+        }
+        if (currentInteractive.relay2 !== prev.relay2) {
+          client.publish(`${config.topicPrefix}/relay2/set`, currentInteractive.relay2 ? "ON" : "OFF", { qos: 0 });
+          client.publish(`${config.topicPrefix}/relay2/status`, currentInteractive.relay2 ? "ON" : "OFF", { qos: 0, retain: true });
+        }
+        if (currentInteractive.relay3 !== prev.relay3) {
+          client.publish(`${config.topicPrefix}/relay3/set`, currentInteractive.relay3 ? "ON" : "OFF", { qos: 0 });
+          client.publish(`${config.topicPrefix}/relay3/status`, currentInteractive.relay3 ? "ON" : "OFF", { qos: 0, retain: true });
+        }
+        if (currentInteractive.relay4 !== prev.relay4) {
+          client.publish(`${config.topicPrefix}/relay4/set`, currentInteractive.relay4 ? "ON" : "OFF", { qos: 0 });
+          client.publish(`${config.topicPrefix}/relay4/status`, currentInteractive.relay4 ? "ON" : "OFF", { qos: 0, retain: true });
+        }
+
+        // 2. Publish AC setting updates
+        if (currentInteractive.acTempSetting !== prev.acTempSetting) {
+          client.publish(`${config.topicPrefix}/ac/tempSetting/set`, currentInteractive.acTempSetting.toString(), { qos: 0 });
+          client.publish(`${config.topicPrefix}/ac/tempSetting/status`, currentInteractive.acTempSetting.toString(), { qos: 0, retain: true });
+        }
+        if (currentInteractive.acFanSpeed !== prev.acFanSpeed) {
+          client.publish(`${config.topicPrefix}/ac/fanSpeed/set`, currentInteractive.acFanSpeed, { qos: 0 });
+          client.publish(`${config.topicPrefix}/ac/fanSpeed/status`, currentInteractive.acFanSpeed, { qos: 0, retain: true });
+        }
+
+        // 3. Publish Ambient Light setting updates
+        if (currentInteractive.ambientLight !== prev.ambientLight) {
+          client.publish(`${config.topicPrefix}/ambient/set`, currentInteractive.ambientLight.toString(), { qos: 0 });
+          client.publish(`${config.topicPrefix}/ambient/status`, currentInteractive.ambientLight.toString(), { qos: 0, retain: true });
+        }
+
+        // 4. Optionally publish the full status telemetry payload to the broker
+        if (config.publishStatus) {
+          const statusTopic = `${config.topicPrefix}/status`;
+          const telemetryObj = {
+            uptime: state.uptime,
+            espTemp: state.espTemperature,
+            vcc: state.relayVcc,
+            pzem: {
+              voltage: state.pzemVoltage,
+              current: state.pzemCurrent,
+              power: state.pzemPower,
+              energy: state.pzemEnergy,
+              frequency: state.pzemFrequency,
+              pf: state.pzemPf,
+            },
+            ac: {
+              tempSetting: state.acTempSetting,
+              fanSpeed: state.acFanSpeed,
+              compressorState: state.acCompressorState,
+              roomTemp: state.roomTemperature,
+            },
+            relays: state.channels.map(c => ({ id: c.id, name: c.name, isOn: c.isOn, temp: c.bulbTemperature, power: c.power }))
+          };
+          const serialized = JSON.stringify(telemetryObj);
+          client.publish(statusTopic, serialized, { qos: 0 });
+          addLog("out", statusTopic, serialized);
+        }
+
         const timer = setTimeout(() => setIsPublishing(false), 300);
         return () => clearTimeout(timer);
       }
@@ -320,24 +557,24 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
           } else if (testTopic === "relay/all/set") {
             if (testPayload.includes(",")) {
               const parts = testPayload.split(",");
-              const nextChannels = state.channels.map((ch, i) => {
+              const nextChannels = stateRef.current.channels.map((ch, i) => {
                 const part = parts[i]?.trim().toUpperCase();
                 if (part) {
                   return { ...ch, isOn: part === "ON" || part === "1" || part === "TRUE" || part === "HIGH" };
                 }
                 return ch;
               });
-              onChange({ channels: nextChannels });
+              onChangeRef.current({ channels: nextChannels });
             } else {
               const bools = JSON.parse(testPayload);
               if (Array.isArray(bools)) {
-                const nextChannels = state.channels.map((ch, i) => {
+                const nextChannels = stateRef.current.channels.map((ch, i) => {
                   if (typeof bools[i] === "boolean") {
                     return { ...ch, isOn: bools[i] };
                   }
                   return ch;
                 });
-                onChange({ channels: nextChannels });
+                onChangeRef.current({ channels: nextChannels });
               }
             }
           }

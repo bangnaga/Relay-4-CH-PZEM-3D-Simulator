@@ -12,12 +12,7 @@ export default defineConfig(() => {
       },
     },
     build: {
-      minify: false,
-      sourcemap: false,
       chunkSizeWarningLimit: 10000,
-      rollupOptions: {
-        treeshake: false,
-      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

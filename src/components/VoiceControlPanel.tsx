@@ -323,6 +323,12 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
       console.error("Speech recognition error", event.error);
       if (event.error === "not-allowed") {
         setTranscript("Gagal: Izin mikrofon ditolak oleh browser.");
+      } else if (event.error === "no-speech") {
+        setTranscript("Tidak ada suara terdeteksi. Menunggu perintah...");
+      } else if (event.error === "audio-capture") {
+        setTranscript("Gagal: Perangkat mikrofon tidak terdeteksi.");
+      } else if (event.error === "network") {
+        setTranscript("Gagal: Masalah koneksi jaringan.");
       } else {
         setTranscript(`Kesalahan: ${event.error}`);
       }

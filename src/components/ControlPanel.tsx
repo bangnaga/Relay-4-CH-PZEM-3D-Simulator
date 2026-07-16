@@ -452,40 +452,6 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
         ))}
       </div>
 
-      {/* Hardware Telemetry */}
-      <div className="bg-slate-950/60 border border-slate-850/80 p-4 rounded-2xl flex flex-col gap-3.5">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-          <Cpu size={12} className="text-[#ff6d5a]" />
-          Telemetri Perangkat Keras ESP32
-        </span>
-
-        <div className="grid grid-cols-2 gap-3.5 text-xs">
-          {/* CPU Temp */}
-          <div className="flex flex-col gap-1 bg-slate-950 p-3 rounded-xl border border-slate-900">
-            <span className="text-[10px] text-slate-500 uppercase">Suhu Inti CPU</span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Thermometer size={14} className="text-orange-400 shrink-0" />
-              <span className="font-mono font-bold text-slate-200">{state.espTemperature.toFixed(1)}°C</span>
-            </div>
-            <div className="w-full h-1 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
-              <div
-                className="h-full bg-orange-400 rounded-full"
-                style={{ width: `${Math.min(100, (state.espTemperature / 70) * 100)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* VCC Voltage */}
-          <div className="flex flex-col gap-1 bg-slate-950 p-3 rounded-xl border border-slate-900">
-            <span className="text-[10px] text-slate-500 uppercase">VCC Rail (5V USB)</span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Zap size={14} className="text-emerald-400 shrink-0" />
-              <span className="font-mono font-bold text-slate-200">{state.relayVcc.toFixed(2)} V</span>
-            </div>
-            <span className="text-[9px] text-slate-500 font-mono mt-1 leading-none">Stabil • Micro USB In</span>
-          </div>
-        </div>
-      </div>
 
       {/* Ambient Day/Night control */}
       <div className="flex flex-col gap-3 border-t border-slate-850 pt-5">
