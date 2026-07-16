@@ -149,6 +149,24 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
   
   const recognitionRef = useRef<any>(null);
   const lastExecutedRef = useRef<{ id: string; time: number } | null>(null);
+  const lastSpokenRef = useRef<{ text: string; time: number } | null>(null);
+
+  // Keep state, commands, and onChange refs updated to prevent stale closures
+  const stateRef = useRef(state);
+  const onChangeRef = useRef(onChange);
+  const commandsRef = useRef(commands);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    commandsRef.current = commands;
+  }, [commands]);
 
   // Keep refs in sync to prevent stale closures in the Web Speech API callback listeners
   useEffect(() => {
@@ -180,6 +198,101 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
       window.removeEventListener("trigger-voice-listen", handleTrigger);
     };
   }, []);
+
+  const lastSpokenTextRef = useRef<string>("");
+  const lastSpokenTimeRef = useRef<number>(0);
+
+  const speakStatus = (text: string) => {
+    if (!("speechSynthesis" in window)) return;
+    const now = Date.now();
+    // Strict duplicate check: if same text within 4 seconds, or ANY text within 1.5 seconds, ignore
+    if (
+      (lastSpokenTextRef.current === text && now - lastSpokenTimeRef.current < 4000) ||
+      (now - lastSpokenTimeRef.current < 1500)
+    ) {
+      console.log("Prevented duplicate TTS speech for:", text);
+      return;
+    }
+    
+    lastSpokenTextRef.current = text;
+    lastSpokenTimeRef.current = now;
+
+    try {
+      window.speechSynthesis.cancel();
+      
+      // Delay speech slightly to allow the speech engine queue to clear fully
+      setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "id-ID";
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        
+        const voices = window.speechSynthesis.getVoices();
+        const idVoice = voices.find((v) => v.lang.startsWith("id") || v.lang.startsWith("in"));
+        if (idVoice) {
+          utterance.voice = idVoice;
+        }
+        window.speechSynthesis.speak(utterance);
+      }, 50);
+    } catch (e) {
+      console.error("TTS failed:", e);
+    }
+  };
+
+  const executeAction = (cmd: CustomCommand) => {
+    const now = Date.now();
+    if (lastExecutedRef.current && lastExecutedRef.current.id === cmd.id && now - lastExecutedRef.current.time < 2000) {
+      console.log("Prevented duplicate execution of command:", cmd.label);
+      return;
+    }
+    lastExecutedRef.current = { id: cmd.id, time: now };
+
+    if (cmd.actionType === "toggle_relay" && cmd.relayId && cmd.targetState !== undefined) {
+      const updatedChannels = stateRef.current.channels.map((ch) => {
+        if (ch.id === cmd.relayId) {
+          return { ...ch, isOn: cmd.targetState };
+        }
+        return ch;
+      });
+      onChangeRef.current({ channels: updatedChannels });
+    } else if (cmd.actionType === "all_on") {
+      const updatedChannels = stateRef.current.channels.map((ch) => ({ ...ch, isOn: true }));
+      onChangeRef.current({ channels: updatedChannels });
+    } else if (cmd.actionType === "all_off") {
+      const updatedChannels = stateRef.current.channels.map((ch) => ({ ...ch, isOn: false }));
+      onChangeRef.current({ channels: updatedChannels });
+    }
+
+    // Speak successful action status in Indonesian
+    speakStatus(`Berhasil, ${cmd.label}`);
+  };
+
+  // Match the transcript with our list of custom commands
+  const processCommandText = (text: string) => {
+    const normalizedSpeech = text.toLowerCase().trim();
+    let bestMatch: CustomCommand | null = null;
+
+    // Direct exact or loose matching using current commands ref
+    for (const cmd of commandsRef.current) {
+      const phraseNorm = cmd.phrase.toLowerCase().trim();
+      if (normalizedSpeech.includes(phraseNorm) || phraseNorm.includes(normalizedSpeech)) {
+        bestMatch = cmd;
+        break;
+      }
+    }
+
+    if (bestMatch) {
+      setMatchedCommand(bestMatch);
+      executeAction(bestMatch);
+    } else {
+      setMatchedCommand(null);
+    }
+  };
+
+  const processCommandTextRef = useRef(processCommandText);
+  useEffect(() => {
+    processCommandTextRef.current = processCommandText;
+  });
 
   // Speech Recognition API setup
   useEffect(() => {
@@ -237,9 +350,14 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
     rec.onresult = (event: any) => {
       if (isDestroyed) return;
       const resultIndex = event.resultIndex;
-      const speechToText = event.results[resultIndex][0].transcript;
+      const result = event.results[resultIndex];
+      // Skip intermediate/non-final speech recognition results
+      if (result && !result.isFinal) {
+        return;
+      }
+      const speechToText = result[0].transcript;
       setTranscript(`Mendengar: "${speechToText}"`);
-      processCommandText(speechToText);
+      processCommandTextRef.current(speechToText);
     };
 
     recognitionRef.current = rec;
@@ -256,7 +374,7 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
       rec.onend = null;
       rec.onresult = null;
     };
-  }, [commands, state]);
+  }, []);
 
   const toggleListen = () => {
     if (unsupported) {
@@ -302,76 +420,6 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
         }
       }
     }
-  };
-
-  // Match the transcript with our list of custom commands
-  const processCommandText = (text: string) => {
-    const normalizedSpeech = text.toLowerCase().trim();
-    let bestMatch: CustomCommand | null = null;
-
-    // Direct exact or loose matching
-    for (const cmd of commands) {
-      const phraseNorm = cmd.phrase.toLowerCase().trim();
-      if (normalizedSpeech.includes(phraseNorm) || phraseNorm.includes(normalizedSpeech)) {
-        bestMatch = cmd;
-        break;
-      }
-    }
-
-    if (bestMatch) {
-      setMatchedCommand(bestMatch);
-      executeAction(bestMatch);
-    } else {
-      setMatchedCommand(null);
-    }
-  };
-
-  const speakStatus = (text: string) => {
-    if (!("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "id-ID";
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      
-      const voices = window.speechSynthesis.getVoices();
-      const idVoice = voices.find((v) => v.lang.startsWith("id"));
-      if (idVoice) {
-        utterance.voice = idVoice;
-      }
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.error("TTS failed:", e);
-    }
-  };
-
-  const executeAction = (cmd: CustomCommand) => {
-    const now = Date.now();
-    if (lastExecutedRef.current && lastExecutedRef.current.id === cmd.id && now - lastExecutedRef.current.time < 2000) {
-      console.log("Prevented duplicate execution of command:", cmd.label);
-      return;
-    }
-    lastExecutedRef.current = { id: cmd.id, time: now };
-
-    if (cmd.actionType === "toggle_relay" && cmd.relayId && cmd.targetState !== undefined) {
-      const updatedChannels = state.channels.map((ch) => {
-        if (ch.id === cmd.relayId) {
-          return { ...ch, isOn: cmd.targetState };
-        }
-        return ch;
-      });
-      onChange({ channels: updatedChannels });
-    } else if (cmd.actionType === "all_on") {
-      const updatedChannels = state.channels.map((ch) => ({ ...ch, isOn: true }));
-      onChange({ channels: updatedChannels });
-    } else if (cmd.actionType === "all_off") {
-      const updatedChannels = state.channels.map((ch) => ({ ...ch, isOn: false }));
-      onChange({ channels: updatedChannels });
-    }
-
-    // Speak successful action status in Indonesian
-    speakStatus(`Berhasil, ${cmd.label}`);
   };
 
   // Helper to trigger direct command via button or text input (very important inside sandboxed Iframe where Mic permissions might be blocked)
@@ -426,14 +474,14 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
             }}
             className={`p-2 rounded-xl border transition-all ${
               showSettings
-                ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                ? "bg-[#ff6d5a]/10 border-[#ff6d5a]/20 text-[#ff6d5a]"
                 : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
             }`}
             title="Custom Kata Perintah"
           >
             <Settings size={15} />
           </button>
-          <div className={`p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition-all duration-300 ${isOpen ? "rotate-180 text-blue-400 border-blue-500/20" : "group-hover:text-slate-200"}`}>
+          <div className={`p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition-all duration-300 ${isOpen ? "rotate-180 text-[#ff6d5a] border-[#ff6d5a]/20" : "group-hover:text-slate-200"}`}>
             <ChevronDown size={15} />
           </div>
         </div>
@@ -460,7 +508,7 @@ export const VoiceControlPanel: React.FC<VoiceControlPanelProps> = ({ state, onC
                 ? "bg-red-500/20 border-red-500 shadow-lg shadow-red-500/40 text-red-400 animate-pulse"
                 : unsupported
                 ? "bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-500 border-blue-500/20 text-white hover:scale-105"
+                : "bg-[#ff6d5a] hover:bg-[#ff897a] border-[#ff6d5a]/20 text-white hover:scale-105"
             }`}
             id="mic-trigger-btn"
           >

@@ -344,16 +344,16 @@ export default function App() {
   }, [lightState.uptime]);
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f8fafc] flex flex-col selection:bg-blue-500/30 selection:text-blue-200">
-      {/* Decorative background glows */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-[#0c0d12] text-[#f8fafc] flex flex-col selection:bg-[#ff6d5a]/30 selection:text-[#ff897a]">
+      {/* Decorative background glows (n8n-style coral/violet warm atmosphere) */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#ff6d5a]/3 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-indigo-500/3 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main Header */}
-      <header className="h-16 border-b border-white/5 bg-[#0f172a]/85 backdrop-blur-md sticky top-0 z-30 px-4 md:px-8 flex items-center">
+      <header className="h-16 border-b border-white/5 bg-[#0c0d12]/90 backdrop-blur-md sticky top-0 z-30 px-4 md:px-8 flex items-center">
         <div className="max-w-7xl w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-8 h-8 bg-[#ff6d5a] rounded-lg flex items-center justify-center shadow-lg shadow-[#ff6d5a]/20">
               <Cpu className="text-white shrink-0" size={18} />
             </div>
             <div>
@@ -372,10 +372,10 @@ export default function App() {
                   panel.scrollIntoView({ behavior: "smooth" });
                 }
               }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 rounded-xl text-xs font-semibold shadow-lg shadow-red-500/5 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#ff6d5a]/10 hover:bg-[#ff6d5a]/20 text-[#ff6d5a] hover:text-[#ff897a] border border-[#ff6d5a]/20 hover:border-[#ff6d5a]/30 rounded-xl text-xs font-semibold shadow-lg shadow-[#ff6d5a]/5 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
               title="Aktifkan Kontrol Suara"
             >
-              <Mic size={14} className="animate-pulse text-red-400" />
+              <Mic size={14} className="animate-pulse text-[#ff6d5a]" />
               <span>Asisten Suara</span>
             </button>
 
@@ -386,7 +386,7 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-xs font-mono text-slate-400 bg-slate-900/60 border border-slate-800/80 px-2.5 py-1 rounded-lg">
+                <span className="text-xs font-mono text-slate-400 bg-[#1e202b] border border-white/5 px-2.5 py-1 rounded-lg">
                   Sistem Online
                 </span>
               </div>
@@ -405,7 +405,7 @@ export default function App() {
           <div className="lg:col-span-7 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Activity size={13} className="text-blue-400" />
+                <Activity size={13} className="text-[#ff6d5a]" />
                 Simulasi Workbench 3D Elektronik
               </h2>
               <span className="text-xs text-slate-500">
@@ -417,12 +417,15 @@ export default function App() {
               state={lightState}
               onChannelClick={handleChannelClick}
             />
+
+            {/* Matrik & Diagnostik Data PZEM-004T */}
+            <StatsDashboard state={lightState} history={history} />
           </div>
 
           {/* Control Panel Right Column */}
           <div className="lg:col-span-5 flex flex-col gap-4">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Settings2 size={13} className="text-blue-400" />
+              <Settings2 size={13} className="text-[#ff6d5a]" />
               Antarmuka Kontrol & Switch Fisik
             </h2>
             <ControlPanel
@@ -447,17 +450,13 @@ export default function App() {
           <GeneratorPanel />
         </div>
 
-        {/* Dashboard Section */}
-        <div className="flex flex-col gap-4 mt-2">
-          <StatsDashboard state={lightState} history={history} />
-        </div>
 
         {/* Educational Information Footer Card */}
-        <div className="glass rounded-3xl p-6 flex flex-col md:flex-row gap-5 items-start">
-          <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl shrink-0">
+        <div className="glass rounded-3xl p-6 flex flex-col md:flex-row gap-5 items-start relative overflow-hidden bg-[radial-gradient(#1e202b_1px,transparent_1px)] [background-size:16px_16px] border-l-4 border-l-[#ff6d5a]">
+          <div className="p-3 bg-[#ff6d5a]/10 border border-[#ff6d5a]/20 text-[#ff6d5a] rounded-2xl shrink-0">
             <Info size={24} />
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 relative z-10">
             <h3 className="font-bold font-display text-slate-200 text-sm tracking-tight">
               Mengenai Prototype Simulasi ESP32 & Relay 4 Channel ini
             </h3>
@@ -475,19 +474,42 @@ export default function App() {
       </main>
 
       {/* Main Footer */}
-      <footer className="border-t border-white/5 bg-[#0f172a] py-6 text-slate-500 px-4 mt-auto">
-        <div className="max-w-7xl mx-auto flex flex-col gap-4">
+      <footer className="border-t border-white/5 bg-[#08090d] py-8 text-slate-500 px-4 mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-col gap-6">
+          
+          {/* Author attribution info beautifully presented in n8n styled row */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/5 pb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#ff6d5a] shadow-lg shadow-[#ff6d5a]/50 animate-pulse" />
+              <p className="text-xs font-semibold tracking-wide uppercase text-slate-300 font-display">
+                Informasi Pengembang
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-4 text-xs">
+              <span className="bg-[#1e202b] text-slate-200 border border-white/5 px-3 py-1.5 rounded-xl font-medium">
+                Dibuat Oleh: <strong className="text-white">Ucok, S.Kom., MT</strong>
+              </span>
+              <a 
+                href="mailto:eailsinaga@gmail.com" 
+                className="text-slate-400 hover:text-[#ff6d5a] transition-all duration-300 bg-[#ff6d5a]/5 hover:bg-[#ff6d5a]/10 border border-[#ff6d5a]/10 hover:border-[#ff6d5a]/20 px-3 py-1.5 rounded-xl font-mono flex items-center gap-1.5"
+              >
+                eailsinaga@gmail.com
+              </a>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
             <p>© 2026 Prototype Simulasi ESP32 & Relay 4-Ch. Dibuat dengan React, Tailwind CSS, & Babylon.js.</p>
             <div className="flex justify-center gap-4 text-slate-400">
-              <a href="#simulator-container" className="hover:text-blue-400 transition-colors">Visualisasi 3D</a>
+              <a href="#simulator-container" className="hover:text-[#ff6d5a] transition-colors">Visualisasi 3D</a>
               <span>•</span>
-              <a href="#control-panel" className="hover:text-blue-400 transition-colors">Panel Kontrol</a>
+              <a href="#control-panel" className="hover:text-[#ff6d5a] transition-colors">Panel Kontrol</a>
               <span>•</span>
-              <a href="#stats-dashboard" className="hover:text-blue-400 transition-colors">Diagnostik Daya</a>
+              <a href="#stats-dashboard" className="hover:text-[#ff6d5a] transition-colors">Diagnostik Daya</a>
             </div>
           </div>
-          <div className="border-t border-white/5 pt-4 flex flex-col md:flex-row items-center justify-between gap-3 text-[10px] text-slate-600 font-mono">
+          
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-[10px] text-slate-600 font-mono">
             <p>ESP32 GPIO State: Relay1(GPIO5 - Dinding), Relay2(GPIO18 - Plafon), Relay3(GPIO19 - Belajar), Relay4(GPIO23 - AC) • PZEM-004T COM: UART2(RX=16, TX=17)</p>
             <p>Simulation Node: JKT-02-BBYL-RELAY4CH</p>
           </div>

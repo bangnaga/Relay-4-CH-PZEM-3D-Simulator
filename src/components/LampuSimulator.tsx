@@ -13,6 +13,7 @@ import {
   GlowLayer,
   Mesh,
   TransformNode,
+  Texture,
 } from "@babylonjs/core";
 import { LightState } from "../types";
 import { HelpCircle, RefreshCw } from "lucide-react";
@@ -192,34 +193,45 @@ export default function LampuSimulator({
     floor.material = floorMat;
     floor.receiveShadows = true;
 
-    // --- Back Wall (White Paint - 3.0m wide by 2.2m high) ---
+    // --- Back Wall, Left Wall, Right Wall Wood Texture ---
+    const woodWallMat = new StandardMaterial("woodWallMat", scene);
+    const woodTex = new Texture("https://assets.babylonjs.com/textures/wood.jpg", scene);
+    // Adjust scaling so the wood pattern is beautifully detailed and tight
+    woodTex.uScale = 2.0;
+    woodTex.vScale = 1.5;
+    woodWallMat.diffuseTexture = woodTex;
+    woodWallMat.diffuseColor = new Color3(0.65, 0.52, 0.4); // Beautiful warm wooden teak/oak tint fallback/base
+    woodWallMat.specularColor = new Color3(0.08, 0.08, 0.08);
+    woodWallMat.roughness = 0.7;
+
+    // --- Back Wall (3.0m wide by 2.2m high) ---
     const backWall = MeshBuilder.CreatePlane("backWall", { width: 3.0, height: 2.2 }, scene);
     backWall.position.set(0, 1.1, 2.0); // flat at Z=2.0
-    const wallMat = new StandardMaterial("wallMat", scene);
-    wallMat.diffuseColor = new Color3(0.95, 0.95, 0.95); // White paint
-    wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
-    wallMat.roughness = 0.85;
-    backWall.material = wallMat;
+    backWall.material = woodWallMat;
     backWall.receiveShadows = true;
 
-    // --- Left Wall (White Paint - 2.0m deep by 2.2m high) ---
+    // --- Left Wall (2.0m deep by 2.2m high) ---
     const leftWall = MeshBuilder.CreatePlane("leftWall", { width: 2.0, height: 2.2 }, scene);
     leftWall.rotation.y = Math.PI / 2; // Rotate to face inwards (+X)
     leftWall.position.set(-1.5, 1.1, 1.0);
-    leftWall.material = wallMat;
+    leftWall.material = woodWallMat;
     leftWall.receiveShadows = true;
 
-    // --- Right Wall (White Paint - 2.0m deep by 2.2m high) ---
+    // --- Right Wall (2.0m deep by 2.2m high) ---
     const rightWall = MeshBuilder.CreatePlane("rightWall", { width: 2.0, height: 2.2 }, scene);
     rightWall.rotation.y = -Math.PI / 2; // Rotate to face inwards (-X)
     rightWall.position.set(1.5, 1.1, 1.0);
-    rightWall.material = wallMat;
+    rightWall.material = woodWallMat;
     rightWall.receiveShadows = true;
 
     // --- Ceiling / Plafon (White Paint - 3.0m wide by 2.0m deep) ---
     const ceiling = MeshBuilder.CreatePlane("ceiling", { width: 3.0, height: 2.0 }, scene);
     ceiling.rotation.x = -Math.PI / 2; // Rotate to face downwards (-Y)
     ceiling.position.set(0, 2.2, 1.0);
+    const wallMat = new StandardMaterial("wallMat", scene);
+    wallMat.diffuseColor = new Color3(0.95, 0.95, 0.95); // White paint
+    wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    wallMat.roughness = 0.85;
     ceiling.material = wallMat;
     ceiling.receiveShadows = true;
 

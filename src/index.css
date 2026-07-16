@@ -11,19 +11,19 @@
 
 @layer base {
   body {
-    @apply bg-[#0f172a] text-[#f8fafc] antialiased font-sans;
+    @apply bg-[#0c0d12] text-[#f8fafc] antialiased font-sans;
   }
 }
 
-/* Glass panel background */
+/* Glass panel background - matching n8n's sleek node container feel */
 .glass {
-  background: rgba(30, 41, 59, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(19, 21, 28, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Sleek range sliders */
+/* Sleek range sliders with n8n Coral Accent */
 input[type='range'] {
   -webkit-appearance: none;
   width: 100%;
@@ -33,7 +33,7 @@ input[type='range'] {
 input[type='range']::-webkit-slider-runnable-track {
   width: 100%;
   height: 6px;
-  background: #1e293b;
+  background: #1e202b;
   border-radius: 3px;
 }
 
@@ -42,16 +42,16 @@ input[type='range']::-webkit-slider-thumb {
   height: 18px;
   width: 18px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #ff6d5a;
   margin-top: -6px;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 12px rgba(255, 109, 90, 0.5);
   cursor: pointer;
   transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
 input[type='range']::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  background: #60a5fa;
+  background: #ff897a;
 }
 
 /* Custom scrollbars for a clean dark look */
@@ -61,15 +61,15 @@ input[type='range']::-webkit-slider-thumb:hover {
 }
 
 ::-webkit-scrollbar-track {
-  background: #020617;
+  background: #08090d;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #1e202b;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #2e3245;
 }
 

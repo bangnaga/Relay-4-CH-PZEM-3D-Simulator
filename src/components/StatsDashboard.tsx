@@ -31,7 +31,7 @@ interface StatsDashboardProps {
 const PLN_TARIFF_PER_KWH = 1444.70;
 
 export default function StatsDashboard({ state, history }: StatsDashboardProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   // 1. Calculations based on active PZEM power
   const currentPower = state.pzemPower; // Watts
   const accumulatedEnergy = state.pzemEnergy; // kWh
@@ -124,7 +124,7 @@ export default function StatsDashboard({ state, history }: StatsDashboardProps) 
         </div>
 
         {/* 6-Field Industrial LCD Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           
           {/* Field 1: Tegangan (Voltage) */}
           <div className="bg-[#0d1527] border border-blue-950 p-4 rounded-2xl flex flex-col justify-between">

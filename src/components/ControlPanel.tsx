@@ -116,7 +116,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
       {/* Header */}
       <div className="flex flex-col gap-1.5 border-b border-slate-800 pb-5">
         <h2 className="text-xl font-display font-bold text-slate-100 tracking-tight flex items-center gap-2">
-          <Sliders className="text-blue-400 shrink-0" size={22} />
+          <Sliders className="text-[#ff6d5a] shrink-0" size={22} />
           Panel Kontrol ESP32 & Relay 4-Ch
         </h2>
         <p className="text-xs text-slate-400">
@@ -138,7 +138,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
               key={ch.id}
               className={`border rounded-2xl p-4 transition-all duration-300 ${
                 ch.isOn
-                  ? "bg-slate-900/60 border-blue-500/30 shadow-lg shadow-blue-500/[0.02]"
+                  ? "bg-[#13141a]/60 border-[#ff6d5a]/25 shadow-lg shadow-[#ff6d5a]/[0.02]"
                   : "bg-slate-950/40 border-slate-800/80"
               }`}
             >
@@ -181,7 +181,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                     onClick={() => setEditingLampId(isEditing ? null : ch.id)}
                     className={`text-[10px] font-bold px-2 py-1 rounded-md border transition-all ${
                       isEditing
-                        ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                        ? "bg-[#ff6d5a]/10 border-[#ff6d5a]/30 text-[#ff6d5a]"
                         : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -191,7 +191,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                   <button
                     onClick={() => handleToggleChannel(ch.id)}
                     className={`w-12 h-6 flex items-center rounded-full p-1 transition-all duration-300 ${
-                      ch.isOn ? "bg-blue-600 justify-end" : "bg-slate-800 justify-start"
+                      ch.isOn ? "bg-[#ff6d5a] justify-end" : "bg-slate-800 justify-start"
                     }`}
                     id={`relay-toggle-${ch.id}`}
                   >
@@ -239,7 +239,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                       type="text"
                       value={ch.name}
                       onChange={(e) => handleUpdateLamp(ch.id, { name: e.target.value })}
-                      className="px-3 py-1.5 bg-slate-950 border border-slate-850 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                      className="px-3 py-1.5 bg-slate-950 border border-slate-850 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-[#ff6d5a]"
                     />
                   </div>
 
@@ -256,7 +256,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                           onClick={() => handleUpdateLamp(ch.id, { type: t.type })}
                           className={`px-3 py-2 rounded-xl border text-[10px] font-medium flex flex-col items-start gap-0.5 transition-all ${
                             ch.type === t.type
-                              ? "bg-slate-800 border-blue-500/50 text-blue-400"
+                              ? "bg-slate-800 border-[#ff6d5a]/50 text-[#ff6d5a]"
                               : "bg-slate-950/60 border-slate-850 text-slate-500 hover:text-slate-300"
                           }`}
                         >
@@ -307,7 +307,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
             key={acCh.id}
             className={`border rounded-2xl p-4 transition-all duration-300 ${
               acCh.isOn
-                ? "bg-slate-900/60 border-blue-500/30 shadow-lg shadow-blue-500/[0.02]"
+                ? "bg-[#13141a]/60 border-[#ff6d5a]/25 shadow-lg shadow-[#ff6d5a]/[0.02]"
                 : "bg-slate-950/40 border-slate-800/80"
             }`}
           >
@@ -317,12 +317,12 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                 <div
                   onClick={() => handleToggleChannel(acCh.id)}
                   className={`w-10 h-10 rounded-xl flex items-center justify-center border cursor-pointer transition-all shrink-0 ${
-                    acCh.isOn ? "bg-blue-500/10 border-blue-400/40 shadow-lg shadow-blue-400/20" : "bg-slate-950/40 border-white/5"
+                    acCh.isOn ? "bg-[#ff6d5a]/10 border-[#ff6d5a]/40 shadow-lg shadow-[#ff6d5a]/20" : "bg-slate-950/40 border-white/5"
                   }`}
                 >
                   <Fan
                     size={18}
-                    className={`text-blue-400 ${acCh.isOn && state.acCompressorState === "Running" ? "animate-spin" : acCh.isOn ? "animate-pulse" : "text-slate-500"}`}
+                    className={`text-[#ff6d5a] ${acCh.isOn && state.acCompressorState === "Running" ? "animate-spin" : acCh.isOn ? "animate-pulse" : "text-slate-500"}`}
                     style={{ animationDuration: state.acFanSpeed === "High" ? "1s" : state.acFanSpeed === "Medium" ? "1.8s" : "3s" }}
                   />
                 </div>
@@ -343,7 +343,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
               <button
                 onClick={() => handleToggleChannel(acCh.id)}
                 className={`w-12 h-6 flex items-center rounded-full p-1 transition-all duration-300 shrink-0 ${
-                  acCh.isOn ? "bg-blue-600 justify-end" : "bg-slate-800 justify-start"
+                  acCh.isOn ? "bg-[#ff6d5a] justify-end" : "bg-slate-800 justify-start"
                 }`}
                 id={`relay-toggle-${acCh.id}`}
               >
@@ -373,7 +373,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                   <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-850 flex items-center gap-2.5">
                     <div className={`p-2 rounded-lg shrink-0 border ${
                       state.acCompressorState === "Running"
-                        ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                        ? "bg-[#ff6d5a]/10 border-[#ff6d5a]/20 text-[#ff6d5a]"
                         : state.acCompressorState === "Starting"
                         ? "bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse"
                         : state.acCompressorState === "Idle"
@@ -385,7 +385,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                     <div>
                       <span className="text-[9px] text-slate-500 uppercase font-bold leading-none block">Kompresor</span>
                       <span className={`text-xs font-bold ${
-                        state.acCompressorState === "Running" ? "text-blue-400" :
+                        state.acCompressorState === "Running" ? "text-[#ff6d5a]" :
                         state.acCompressorState === "Starting" ? "text-amber-400 animate-pulse" :
                         state.acCompressorState === "Idle" ? "text-emerald-400" : "text-slate-500"
                       }`}>
@@ -399,7 +399,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Set Temperatur AC</span>
-                    <span className="text-xs font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
+                    <span className="text-xs font-mono font-bold text-[#ff6d5a] bg-[#ff6d5a]/10 border border-[#ff6d5a]/20 px-2 py-0.5 rounded">
                       {state.acTempSetting}°C
                     </span>
                   </div>
@@ -409,7 +409,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                     max="30"
                     value={state.acTempSetting}
                     onChange={(e) => onChange({ acTempSetting: Number(e.target.value) })}
-                    className="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-blue-500 focus:outline-none"
+                    className="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer focus:outline-none"
                     id="ac-temp-slider"
                   />
                   <div className="flex justify-between text-[8px] text-slate-500 font-mono">
@@ -430,7 +430,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
                         onClick={() => onChange({ acFanSpeed: speed })}
                         className={`py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
                           state.acFanSpeed === speed
-                            ? "bg-blue-600/10 border-blue-500/50 text-blue-400"
+                            ? "bg-[#ff6d5a]/10 border-[#ff6d5a]/50 text-[#ff6d5a]"
                             : "bg-slate-950 border-slate-850 text-slate-500 hover:text-slate-400"
                         }`}
                       >
@@ -455,7 +455,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
       {/* Hardware Telemetry */}
       <div className="bg-slate-950/60 border border-slate-850/80 p-4 rounded-2xl flex flex-col gap-3.5">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-          <Cpu size={12} className="text-blue-400" />
+          <Cpu size={12} className="text-[#ff6d5a]" />
           Telemetri Perangkat Keras ESP32
         </span>
 
@@ -496,11 +496,11 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
             ) : state.ambientLight < 70 ? (
               <CloudSun size={15} className="text-sky-400" />
             ) : (
-              <Sun size={15} className="text-blue-400" />
+              <Sun size={15} className="text-amber-400" />
             )}
             Ambient Ruangan (Siang/Malam)
           </label>
-          <span className="text-xs font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+          <span className="text-xs font-mono font-bold text-[#ff6d5a] bg-[#ff6d5a]/10 px-2 py-0.5 rounded-full border border-[#ff6d5a]/20">
             {state.ambientLight}%
           </span>
         </div>
@@ -510,7 +510,7 @@ export default function ControlPanel({ state, onChange }: ControlPanelProps) {
           max="100"
           value={state.ambientLight}
           onChange={(e) => onChange({ ambientLight: Number(e.target.value) })}
-          className="w-full h-1.5 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-blue-500 focus:outline-none"
+          className="w-full h-1.5 bg-slate-850 rounded-lg appearance-none cursor-pointer focus:outline-none"
           id="ambient-slider"
         />
         <div className="flex justify-between text-[9px] text-slate-500 font-semibold px-0.5">
