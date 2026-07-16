@@ -95,28 +95,111 @@ export default function App() {
     });
   });
 
-  // Main state modifier
-  const handleStateChange = (updates: Partial<LightState>) => {
-    setLightState((prev) => ({
-      ...prev,
-      ...updates,
-    }));
+  // Lifted MQTT publish handler callback state
+  const [mqttPublish, setMqttPublish] = useState<((subTopic: string, payload: string, retain?: boolean) => void) | null>(null);
+
+  // Main state modifier (with optional source flag to intercept local changes and redirect them to MQTT publish)
+  const handleStateChange = (updates: Partial<LightState>, isFromMqtt = false) => {
+    if (mqttPublish && !isFromMqtt) {
+      // Direct, event-driven publishing to MQTT!
+      // Do NOT mutate local state. The local state will update when the message is broadcasted back.
+      handleMqttUserPublish(updates);
+    } else {
+      // Fallback offline mode, or incoming message from subscription: Update React state immediately
+      setLightState((prev) => {
+        const next = {
+          ...prev,
+          ...updates,
+        };
+        if (updates.channels) {
+          next.channels = updates.channels;
+        }
+        return next;
+      });
+    }
+  };
+
+  // Helper to publish user interaction events to MQTT
+  const handleMqttUserPublish = (updates: Partial<LightState>) => {
+    if (!mqttPublish) return;
+
+    // 1. Relays: Check if any relay has toggled
+    if (updates.channels) {
+      const changedRelays: Array<{ id: number; isOn: boolean }> = [];
+      updates.channels.forEach((ch, idx) => {
+        const prevCh = lightState.channels[idx];
+        if (prevCh && ch.isOn !== prevCh.isOn) {
+          changedRelays.push({ id: ch.id, isOn: ch.isOn });
+        }
+      });
+
+      if (changedRelays.length > 1) {
+        // Bulk preset triggered (e.g., all_on, all_off)
+        // Publish to esp32/relay4ch/relay/all/set
+        const commandString = updates.channels.map(ch => ch.isOn ? "ON" : "OFF").join(",");
+        mqttPublish("relay/all/set", commandString);
+
+        // Also publish to individual set topics so subscribers watching them specifically get synchronized
+        changedRelays.forEach(item => {
+          mqttPublish(`relay${item.id}/set`, item.isOn ? "ON" : "OFF");
+        });
+      } else if (changedRelays.length === 1) {
+        // Single relay toggled
+        const relay = changedRelays[0];
+        mqttPublish(`relay${relay.id}/set`, relay.isOn ? "ON" : "OFF");
+      }
+
+      // Check if user did visual customizations (e.g. edited bulb name, type, color in the drawer)
+      const hasLocalCustomizations = updates.channels.some((ch, idx) => {
+        const prevCh = lightState.channels[idx];
+        return prevCh && (ch.name !== prevCh.name || ch.color !== prevCh.color || ch.type !== prevCh.type);
+      });
+
+      if (hasLocalCustomizations) {
+        // Apply visual modifications immediately since they aren't real physical hardware states
+        setLightState((prev) => {
+          const nextChannels = prev.channels.map((ch, idx) => {
+            const updateCh = updates.channels?.[idx];
+            if (updateCh) {
+              return {
+                ...ch,
+                name: updateCh.name,
+                color: updateCh.color,
+                type: updateCh.type,
+              };
+            }
+            return ch;
+          });
+          return { ...prev, channels: nextChannels };
+        });
+      }
+    }
+
+    // 2. AC temperature setting change
+    if (updates.acTempSetting !== undefined && updates.acTempSetting !== lightState.acTempSetting) {
+      mqttPublish("ac/tempSetting/set", updates.acTempSetting.toString());
+    }
+
+    // 3. AC fan speed change
+    if (updates.acFanSpeed !== undefined && updates.acFanSpeed !== lightState.acFanSpeed) {
+      mqttPublish("ac/fanSpeed/set", updates.acFanSpeed);
+    }
+
+    // 4. Ambient light change
+    if (updates.ambientLight !== undefined && updates.ambientLight !== lightState.ambientLight) {
+      mqttPublish("ambient/set", updates.ambientLight.toString());
+    }
   };
 
   // Toggle single channel (triggered by 3D mesh click or control panel toggle)
   const handleChannelClick = (channelId: number) => {
-    setLightState((prev) => {
-      const updatedChannels = prev.channels.map((ch) => {
-        if (ch.id === channelId) {
-          return { ...ch, isOn: !ch.isOn };
-        }
-        return ch;
-      });
-      return {
-        ...prev,
-        channels: updatedChannels,
-      };
+    const toggledChannels = lightState.channels.map((ch) => {
+      if (ch.id === channelId) {
+        return { ...ch, isOn: !ch.isOn };
+      }
+      return ch;
     });
+    handleStateChange({ channels: toggledChannels });
   };
 
   // Unified Live Interval (1-second clock loop)
@@ -442,7 +525,11 @@ export default function App() {
 
         {/* MQTT Integration Section */}
         <div className="flex flex-col gap-4 mt-2">
-          <MqttPanel state={lightState} onChange={handleStateChange} />
+          <MqttPanel 
+            state={lightState} 
+            onChange={(updates) => handleStateChange(updates, true)} 
+            onClientReady={setMqttPublish}
+          />
         </div>
 
         {/* Dynamic Code Generator Section */}

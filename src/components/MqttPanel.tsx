@@ -22,6 +22,7 @@ import { LightState, MqttConfig, MqttLog } from "../types";
 interface MqttPanelProps {
   state: LightState;
   onChange: (update: Partial<LightState>) => void;
+  onClientReady?: (publishFn: ((subTopic: string, payload: string, retain?: boolean) => void) | null) => void;
 }
 
 const DEFAULT_CONFIG: MqttConfig = {
@@ -33,7 +34,7 @@ const DEFAULT_CONFIG: MqttConfig = {
   publishStatus: true
 };
 
-export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
+export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange, onClientReady }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<MqttConfig>(() => {
     const saved = localStorage.getItem("esp32_relay_mqtt_config");
@@ -98,6 +99,7 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
 
   const prevInteractiveStateRef = useRef<InteractiveState | null>(null);
   const lastReceivedInteractiveStateRef = useRef<InteractiveState | null>(null);
+  const recentMqttStatesRef = useRef<InteractiveState[]>([]);
 
   // Initialize previous state ref on mount or when connected
   useEffect(() => {
@@ -105,6 +107,18 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
       prevInteractiveStateRef.current = getInteractiveState(state);
     }
   }, [state]);
+
+  const isInteractiveStateEqual = (a: InteractiveState, b: InteractiveState) => {
+    return (
+      a.relay1 === b.relay1 &&
+      a.relay2 === b.relay2 &&
+      a.relay3 === b.relay3 &&
+      a.relay4 === b.relay4 &&
+      a.acTempSetting === b.acTempSetting &&
+      a.acFanSpeed === b.acFanSpeed &&
+      a.ambientLight === b.ambientLight
+    );
+  };
 
   // Helper to update state from an incoming MQTT message
   const updateStateFromMqtt = (updater: (prev: LightState) => Partial<LightState>) => {
@@ -115,6 +129,15 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
     }
 
     const nextInteractive = getInteractiveState(nextState);
+
+    // Update stateRef.current immediately to prevent stale reads in back-to-back MQTT messages
+    stateRef.current = nextState;
+
+    // Record this state as an MQTT-originating state to suppress publishing loop
+    recentMqttStatesRef.current.push(nextInteractive);
+    if (recentMqttStatesRef.current.length > 20) {
+      recentMqttStatesRef.current.shift();
+    }
 
     // Update both refs immediately to prevent the publish useEffect from considering this a local user change
     lastReceivedInteractiveStateRef.current = nextInteractive;
@@ -416,102 +439,57 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Publish state updates ONLY when triggered locally by the user (filters out MQTT-received updates)
+  // Register the publish callback with the parent App.tsx when connected
   useEffect(() => {
-    if (client && status === "connected") {
-      const currentInteractive = getInteractiveState(state);
-      const prev = prevInteractiveStateRef.current;
-
-      if (!prev) {
-        prevInteractiveStateRef.current = currentInteractive;
-        return;
-      }
-
-      const hasChanged = JSON.stringify(currentInteractive) !== JSON.stringify(prev);
-
-      if (hasChanged) {
-        // Determine if this change was triggered from an incoming MQTT message
-        const isFromMqtt = lastReceivedInteractiveStateRef.current && 
-                           JSON.stringify(currentInteractive) === JSON.stringify(lastReceivedInteractiveStateRef.current);
-
-        // Always update the prev ref to match current state
-        prevInteractiveStateRef.current = currentInteractive;
-
-        if (isFromMqtt) {
-          // Suppress publishing because this change was triggered by MQTT
-          return;
-        }
-
-        // Trigger user control publishing (local user change!)
-        setIsPublishing(true);
-
-        // 1. Publish individual relay updates
-        if (currentInteractive.relay1 !== prev.relay1) {
-          client.publish(`${config.topicPrefix}/relay1/set`, currentInteractive.relay1 ? "ON" : "OFF", { qos: 0 });
-          client.publish(`${config.topicPrefix}/relay1/status`, currentInteractive.relay1 ? "ON" : "OFF", { qos: 0, retain: true });
-        }
-        if (currentInteractive.relay2 !== prev.relay2) {
-          client.publish(`${config.topicPrefix}/relay2/set`, currentInteractive.relay2 ? "ON" : "OFF", { qos: 0 });
-          client.publish(`${config.topicPrefix}/relay2/status`, currentInteractive.relay2 ? "ON" : "OFF", { qos: 0, retain: true });
-        }
-        if (currentInteractive.relay3 !== prev.relay3) {
-          client.publish(`${config.topicPrefix}/relay3/set`, currentInteractive.relay3 ? "ON" : "OFF", { qos: 0 });
-          client.publish(`${config.topicPrefix}/relay3/status`, currentInteractive.relay3 ? "ON" : "OFF", { qos: 0, retain: true });
-        }
-        if (currentInteractive.relay4 !== prev.relay4) {
-          client.publish(`${config.topicPrefix}/relay4/set`, currentInteractive.relay4 ? "ON" : "OFF", { qos: 0 });
-          client.publish(`${config.topicPrefix}/relay4/status`, currentInteractive.relay4 ? "ON" : "OFF", { qos: 0, retain: true });
-        }
-
-        // 2. Publish AC setting updates
-        if (currentInteractive.acTempSetting !== prev.acTempSetting) {
-          client.publish(`${config.topicPrefix}/ac/tempSetting/set`, currentInteractive.acTempSetting.toString(), { qos: 0 });
-          client.publish(`${config.topicPrefix}/ac/tempSetting/status`, currentInteractive.acTempSetting.toString(), { qos: 0, retain: true });
-        }
-        if (currentInteractive.acFanSpeed !== prev.acFanSpeed) {
-          client.publish(`${config.topicPrefix}/ac/fanSpeed/set`, currentInteractive.acFanSpeed, { qos: 0 });
-          client.publish(`${config.topicPrefix}/ac/fanSpeed/status`, currentInteractive.acFanSpeed, { qos: 0, retain: true });
-        }
-
-        // 3. Publish Ambient Light setting updates
-        if (currentInteractive.ambientLight !== prev.ambientLight) {
-          client.publish(`${config.topicPrefix}/ambient/set`, currentInteractive.ambientLight.toString(), { qos: 0 });
-          client.publish(`${config.topicPrefix}/ambient/status`, currentInteractive.ambientLight.toString(), { qos: 0, retain: true });
-        }
-
-        // 4. Optionally publish the full status telemetry payload to the broker
-        if (config.publishStatus) {
-          const statusTopic = `${config.topicPrefix}/status`;
-          const telemetryObj = {
-            uptime: state.uptime,
-            espTemp: state.espTemperature,
-            vcc: state.relayVcc,
-            pzem: {
-              voltage: state.pzemVoltage,
-              current: state.pzemCurrent,
-              power: state.pzemPower,
-              energy: state.pzemEnergy,
-              frequency: state.pzemFrequency,
-              pf: state.pzemPf,
-            },
-            ac: {
-              tempSetting: state.acTempSetting,
-              fanSpeed: state.acFanSpeed,
-              compressorState: state.acCompressorState,
-              roomTemp: state.roomTemperature,
-            },
-            relays: state.channels.map(c => ({ id: c.id, name: c.name, isOn: c.isOn, temp: c.bulbTemperature, power: c.power }))
-          };
-          const serialized = JSON.stringify(telemetryObj);
-          client.publish(statusTopic, serialized, { qos: 0 });
-          addLog("out", statusTopic, serialized);
-        }
-
-        const timer = setTimeout(() => setIsPublishing(false), 300);
-        return () => clearTimeout(timer);
+    if (onClientReady) {
+      if (client && status === "connected") {
+        const publishFn = (subTopic: string, payload: string, retain = false) => {
+          if (clientRef.current) {
+            const fullTopic = `${config.topicPrefix}/${subTopic}`;
+            clientRef.current.publish(fullTopic, payload, { qos: 0, retain });
+            addLog("out", fullTopic, payload);
+            setIsPublishing(true);
+            setTimeout(() => setIsPublishing(false), 250);
+          }
+        };
+        onClientReady(publishFn);
+      } else {
+        onClientReady(null);
       }
     }
-  }, [state, client, status, config.publishStatus, config.topicPrefix]);
+  }, [client, status, config.topicPrefix, onClientReady]);
+
+  // Periodic status telemetry publish (simulate ESP32 transmitting PZEM & DHT data to broker)
+  useEffect(() => {
+    if (client && status === "connected" && config.publishStatus) {
+      const interval = setInterval(() => {
+        const statusTopic = `${config.topicPrefix}/status`;
+        const telemetryObj = {
+          uptime: stateRef.current.uptime,
+          espTemp: stateRef.current.espTemperature,
+          vcc: stateRef.current.relayVcc,
+          pzem: {
+            voltage: stateRef.current.pzemVoltage,
+            current: stateRef.current.pzemCurrent,
+            power: stateRef.current.pzemPower,
+            energy: stateRef.current.pzemEnergy,
+            frequency: stateRef.current.pzemFrequency,
+            pf: stateRef.current.pzemPf,
+          },
+          ac: {
+            tempSetting: stateRef.current.acTempSetting,
+            fanSpeed: stateRef.current.acFanSpeed,
+            compressorState: stateRef.current.acCompressorState,
+            roomTemp: stateRef.current.roomTemperature,
+          },
+          relays: stateRef.current.channels.map(c => ({ id: c.id, name: c.name, isOn: c.isOn, temp: c.bulbTemperature, power: c.power }))
+        };
+        const serialized = JSON.stringify(telemetryObj);
+        client.publish(statusTopic, serialized, { qos: 0 });
+      }, 5000); // Send status every 5 seconds
+      return () => clearInterval(interval);
+    }
+  }, [client, status, config.publishStatus, config.topicPrefix]);
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
