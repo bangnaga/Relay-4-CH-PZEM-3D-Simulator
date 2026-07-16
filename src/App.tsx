@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { LightState, PowerDataPoint } from "./types";
 import LampuSimulator from "./components/LampuSimulator";
 import ControlPanel from "./components/ControlPanel";
@@ -97,6 +97,10 @@ export default function App() {
 
   // Lifted MQTT publish handler callback state
   const [mqttPublish, setMqttPublish] = useState<((subTopic: string, payload: string, retain?: boolean) => void) | null>(null);
+
+  const handleSetMqttPublish = useCallback((publishFn: ((subTopic: string, payload: string, retain?: boolean) => void) | null) => {
+    setMqttPublish(() => publishFn);
+  }, []);
 
   // Main state modifier (with optional source flag to intercept local changes and redirect them to MQTT publish)
   const handleStateChange = (updates: Partial<LightState>, isFromMqtt = false) => {
@@ -528,7 +532,7 @@ export default function App() {
           <MqttPanel 
             state={lightState} 
             onChange={(updates) => handleStateChange(updates, true)} 
-            onClientReady={setMqttPublish}
+            onClientReady={handleSetMqttPublish}
           />
         </div>
 

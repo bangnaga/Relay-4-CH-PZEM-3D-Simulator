@@ -452,9 +452,15 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange, onClientR
             setTimeout(() => setIsPublishing(false), 250);
           }
         };
-        onClientReady(publishFn);
+        const timer = setTimeout(() => {
+          onClientReady(publishFn);
+        }, 0);
+        return () => clearTimeout(timer);
       } else {
-        onClientReady(null);
+        const timer = setTimeout(() => {
+          onClientReady(null);
+        }, 0);
+        return () => clearTimeout(timer);
       }
     }
   }, [client, status, config.topicPrefix, onClientReady]);

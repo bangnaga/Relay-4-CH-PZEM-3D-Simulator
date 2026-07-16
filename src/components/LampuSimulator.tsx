@@ -16,7 +16,7 @@ import {
   Texture,
 } from "@babylonjs/core";
 import { LightState } from "../types";
-import { HelpCircle, RefreshCw } from "lucide-react";
+import { HelpCircle, RefreshCw, Zap, Power } from "lucide-react";
 
 interface LampuSimulatorProps {
   state: LightState;
@@ -1372,7 +1372,7 @@ export default function LampuSimulator({
       </div>
 
       {showHelperText && (
-        <div className="absolute bottom-4 left-4 right-4 md:right-auto z-10 pointer-events-none">
+        <div className="absolute bottom-[92px] sm:bottom-[104px] left-4 right-4 md:right-auto z-10 pointer-events-none">
           <div className="glass px-4 py-2.5 rounded-xl flex items-center justify-between gap-4 shadow-lg pointer-events-auto">
             <div className="flex items-center gap-2 text-slate-300 text-xs">
               <HelpCircle size={14} className="text-blue-400 shrink-0" />
@@ -1387,6 +1387,78 @@ export default function LampuSimulator({
           </div>
         </div>
       )}
+
+      {/* Overlay Panel (4 Relay Switches + Power Consumption) */}
+      <div className="absolute bottom-4 left-4 right-4 z-10 grid grid-cols-5 gap-1.5 sm:gap-3 pointer-events-auto">
+        {state.channels.map((ch) => (
+          <button
+            key={ch.id}
+            onClick={() => onChannelClick && onChannelClick(ch.id)}
+            className={`rounded-2xl p-2 sm:p-3 border transition-all duration-300 flex flex-col justify-between h-[68px] sm:h-[78px] text-left group focus:outline-none focus:ring-1 focus:ring-yellow-500/50 ${
+              ch.isOn
+                ? "bg-yellow-500/15 border-yellow-500/50 hover:bg-yellow-500/20 shadow-lg shadow-yellow-500/5"
+                : "bg-slate-950/80 border-slate-800/80 hover:border-slate-700/60 hover:bg-slate-900/80"
+            }`}
+            id={`overlay-relay-btn-${ch.id}`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className={`text-[8px] sm:text-[10px] font-mono font-bold uppercase tracking-wider ${
+                ch.isOn ? "text-yellow-400 font-extrabold" : "text-slate-500"
+              }`}>
+                RELAY {ch.id}
+              </span>
+              <div className="flex items-center gap-1">
+                <span className={`text-[8px] font-mono font-bold hidden md:inline px-1 py-0.2 rounded ${
+                  ch.isOn ? "bg-yellow-500/20 text-yellow-300" : "bg-slate-800 text-slate-500"
+                }`}>
+                  {ch.id === 1 ? "GPIO 5" : ch.id === 2 ? "GPIO 18" : ch.id === 3 ? "GPIO 19" : "GPIO 21"}
+                </span>
+                <div
+                  className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all duration-300 ${
+                    ch.isOn 
+                      ? "bg-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.8)]" 
+                      : "bg-slate-700"
+                  }`}
+                />
+              </div>
+            </div>
+            
+            <div className="flex flex-col w-full">
+              <span className={`text-[10px] sm:text-xs font-semibold truncate transition-colors ${
+                ch.isOn ? "text-yellow-100" : "text-slate-300 group-hover:text-slate-200"
+              }`}>
+                {ch.name}
+              </span>
+              <span className="text-[8px] sm:text-[10px] text-slate-500 font-mono mt-0.5">
+                {ch.isOn ? "ON" : "OFF"} • {ch.power}W
+              </span>
+            </div>
+          </button>
+        ))}
+
+        {/* Power Consumption Area (Green) */}
+        <div className="rounded-2xl p-2 sm:p-3 border bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/5 flex flex-col justify-between h-[68px] sm:h-[78px]">
+          <div className="flex items-center justify-between w-full">
+            <span className="text-[8px] sm:text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+              <Zap size={10} className="text-emerald-400 shrink-0" />
+              PZEM-004T
+            </span>
+            <span className="text-[8px] bg-emerald-500/25 text-emerald-300 px-1 py-0.2 rounded font-mono font-bold scale-90 sm:scale-100">
+              LIVE
+            </span>
+          </div>
+          
+          <div className="flex flex-col">
+            <span className="text-[8px] sm:text-[9px] text-slate-400 font-medium leading-none">Konsumsi</span>
+            <div className="flex items-baseline gap-0.5 sm:gap-1 mt-0.5">
+              <span className="text-xs sm:text-lg font-bold text-slate-100 font-mono tracking-tight leading-none animate-pulse">
+                {state.pzemPower.toFixed(1)}
+              </span>
+              <span className="text-[8px] sm:text-xs text-slate-400 font-mono leading-none">W</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {loading && (
         <div className="absolute inset-0 bg-[#0f172a] flex flex-col items-center justify-center gap-3 z-20">
