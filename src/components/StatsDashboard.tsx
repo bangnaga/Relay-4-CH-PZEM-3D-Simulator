@@ -25,12 +25,13 @@ import { motion, AnimatePresence } from "motion/react";
 interface StatsDashboardProps {
   state: LightState;
   history: PowerDataPoint[];
+  onChange?: (updates: Partial<LightState>) => void;
 }
 
 // Indonesian PLN tariff per kWh (Tarif Rumah Tangga R-1/TR 1300 VA ke atas)
 const PLN_TARIFF_PER_KWH = 1444.70;
 
-export default function StatsDashboard({ state, history }: StatsDashboardProps) {
+export default function StatsDashboard({ state, history, onChange }: StatsDashboardProps) {
   const [isOpen, setIsOpen] = useState(true);
   // 1. Calculations based on active PZEM power
   const currentPower = state.pzemPower; // Watts
@@ -98,28 +99,65 @@ export default function StatsDashboard({ state, history }: StatsDashboardProps) 
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         
         {/* Banner header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-blue-950 pb-5 mb-6">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-blue-950 pb-5 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-950 border border-blue-800/40 rounded-xl flex items-center justify-center text-blue-400">
-              <Gauge size={20} className="animate-pulse" />
+              <Gauge size={20} className={state.pzemMode === "simulation" ? "animate-spin" : "animate-pulse"} style={state.pzemMode === "simulation" ? { animationDuration: "10s" } : {}} />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-white font-display text-sm tracking-wide">
                   PZEM-004T V3.0 Power Monitor
                 </h3>
-                <span className="text-[9px] font-mono font-bold bg-blue-950 text-blue-400 border border-blue-900 px-1.5 py-0.5 rounded-md leading-none">
-                  UART COM ACTIVE
-                </span>
+                {state.pzemMode === "simulation" ? (
+                  <span className="text-[9px] font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded-md leading-none">
+                    SIMULASI AKTIF
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-md leading-none animate-pulse">
+                    REALTIME MQTT
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Modul sensor kelistrikan AC multi-fungsi berpresisi tinggi (Akurasi Kelas 1.0)
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-900/40 border border-slate-800/80 px-3 py-1.5 rounded-xl">
-            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping shrink-0" />
-            <span>PZEM TX/RX Pulses...</span>
+          
+          {/* Dual Mode Switch Control */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1 bg-[#070a12] border border-blue-950/60 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => onChange?.({ pzemMode: "simulation" })}
+                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold font-mono tracking-tight transition-all flex items-center gap-1.5 cursor-pointer ${
+                  state.pzemMode === "simulation"
+                    ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+                }`}
+              >
+                <Cpu size={11} />
+                MODE SIMULASI
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange?.({ pzemMode: "realtime" })}
+                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold font-mono tracking-tight transition-all flex items-center gap-1.5 cursor-pointer ${
+                  state.pzemMode === "realtime"
+                    ? "bg-[#ff6d5a] text-white shadow-lg shadow-[#ff6d5a]/25"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+                }`}
+              >
+                <Activity size={11} />
+                DATA REAL (MQTT)
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400 bg-slate-900/40 border border-slate-800/80 px-2.5 py-1.5 rounded-xl">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${state.pzemMode === "simulation" ? "bg-blue-400 animate-pulse" : "bg-emerald-400 animate-ping"}`} />
+              <span>{state.pzemMode === "simulation" ? "Simulasi Beban" : "Menerima Telemetri"}</span>
+            </div>
           </div>
         </div>
 

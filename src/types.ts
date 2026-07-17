@@ -15,6 +15,7 @@ export interface LightState {
   espTemperature: number; // Simulated ESP32 CPU Temperature
   relayVcc: number; // Simulated VCC voltage (e.g., 5.0V)
   uptime: number; // Simulated device uptime in seconds
+  pzemMode: "simulation" | "realtime"; // PZEM mode: simulation or MQTT real data
   // PZEM-004T sensor real-time measurements
   pzemVoltage: number;    // V
   pzemCurrent: number;    // A

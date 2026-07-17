@@ -1151,12 +1151,21 @@ export default function LampuSimulator({
     setLoading(false);
 
     // Dynamic resize handler
+    let resizeId: number;
     const resizeObserver = new ResizeObserver(() => {
-      engine.resize();
+      cancelAnimationFrame(resizeId);
+      resizeId = requestAnimationFrame(() => {
+        if (engine && !engine.isDisposed) {
+          engine.resize();
+        }
+      });
     });
-    resizeObserver.observe(containerRef.current);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
 
     return () => {
+      cancelAnimationFrame(resizeId);
       resizeObserver.disconnect();
       scene.dispose();
       engine.dispose();
@@ -1337,7 +1346,7 @@ export default function LampuSimulator({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[320px] md:h-[480px] glass rounded-3xl overflow-hidden shadow-2xl transition-all duration-300"
+      className="relative w-full h-full glass rounded-3xl overflow-hidden shadow-2xl transition-all duration-300"
       id="simulator-container"
     >
       {/* Canvas */}

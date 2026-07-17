@@ -31,7 +31,7 @@ const DEFAULT_CONFIG: MqttConfig = {
   username: "",
   password: "",
   topicPrefix: "esp32/relay4ch",
-  publishStatus: true
+  publishStatus: false
 };
 
 export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange, onClientReady }) => {
@@ -524,48 +524,8 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange, onClientR
     if (client && status === "connected") {
       client.publish(fullTopic, testPayload);
     } else {
-      // Offline local injection
-      addLog("status", "system", "(Simulasi Sandbox Lokal - MQTT belum tersambung)");
-      setTimeout(() => {
-        addLog("in", fullTopic, testPayload);
-        try {
-          const powerVal = testPayload.trim().toUpperCase();
-          const isOn = powerVal === "ON" || powerVal === "1" || powerVal === "TRUE" || powerVal === "HIGH";
-
-          if (testTopic.startsWith("relay") && testTopic.endsWith("/set")) {
-            const match = testTopic.match(/relay(\d)\/set/);
-            if (match) {
-              const id = parseInt(match[1], 10);
-              updateRelayState(id, isOn);
-            }
-          } else if (testTopic === "relay/all/set") {
-            if (testPayload.includes(",")) {
-              const parts = testPayload.split(",");
-              const nextChannels = stateRef.current.channels.map((ch, i) => {
-                const part = parts[i]?.trim().toUpperCase();
-                if (part) {
-                  return { ...ch, isOn: part === "ON" || part === "1" || part === "TRUE" || part === "HIGH" };
-                }
-                return ch;
-              });
-              onChangeRef.current({ channels: nextChannels });
-            } else {
-              const bools = JSON.parse(testPayload);
-              if (Array.isArray(bools)) {
-                const nextChannels = stateRef.current.channels.map((ch, i) => {
-                  if (typeof bools[i] === "boolean") {
-                    return { ...ch, isOn: bools[i] };
-                  }
-                  return ch;
-                });
-                onChangeRef.current({ channels: nextChannels });
-              }
-            }
-          }
-        } catch (err: any) {
-          addLog("status", "error", `Gagal injeksi simulasi lokal: ${err.message}`);
-        }
-      }, 300);
+      // No offline injection
+      addLog("status", "system", "Kesalahan: MQTT belum tersambung. Tidak dapat mengirimkan perintah kontrol.");
     }
   };
 
@@ -670,8 +630,8 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange, onClientR
           {/* Toggle publish status */}
           <div className="flex items-center justify-between h-[52px] bg-slate-950/40 px-4 rounded-xl border border-slate-800/80">
             <div className="flex flex-col">
-              <span className="text-xs font-medium text-slate-300">Publikasi Telemetri Otomatis</span>
-              <span className="text-[10px] text-slate-500">Kirim status kelistrikan & suhu real-time ke MQTT</span>
+              <span className="text-xs font-medium text-slate-300">Simulasikan Alat Fisik (Publish Telemetri)</span>
+              <span className="text-[10px] text-slate-500">Gunakan jika tidak ada alat fisik ESP32 yang terhubung</span>
             </div>
             <button
               onClick={() => setConfig({ ...config, publishStatus: !config.publishStatus })}
@@ -780,7 +740,7 @@ export const MqttPanel: React.FC<MqttPanelProps> = ({ state, onChange, onClientR
             </div>
           </div>
           <p className="text-[10px] text-slate-400">
-            Gunakan area ini untuk mensimulasikan pengiriman sinyal kontrol MQTT dari server IoT (Home Assistant) ke relay Lampu / AC.
+            Gunakan area ini untuk mengirim sinyal kontrol MQTT secara manual (seperti dari server Home Assistant) ke relay Lampu / AC yang terhubung.
           </p>
 
           <div className="flex flex-col gap-3.5 text-xs">
